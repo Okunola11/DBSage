@@ -35,19 +35,25 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Cache dependencies
+      - name: Cache Poetry and dependencies
         uses: actions/cache@v3
         with:
-          path: ~/.cache/pypoetry
+          path: |
+            ~/.cache/pypoetry
+            ~/.cache/pypoetry/virtualenvs
           key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
           restore-keys: |
             ${{ runner.os }}-poetry-
 
-      - name: Install dependencies
+      - name: Install Poetry (if not installed)
         run: |
-          python3 -m pip install --upgrade pip
-          pip install poetry
-          poetry install
+          if ! command -v poetry &> /dev/null; then
+            curl -sSL https://install.python-poetry.org | python3 -
+          fi
+          poetry --version
+
+      - name: Install dependencies with Poetry
+        run: poetry install
 
       - name: Copy env file
         run: cp .env.sample .env
