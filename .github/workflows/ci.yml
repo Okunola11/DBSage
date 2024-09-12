@@ -55,6 +55,9 @@ jobs:
       - name: Install dependencies with Poetry
         run: poetry install
 
+      - name: List installed packages
+        run: poetry run poetry show
+
       - name: Copy env file
         run: cp .env.sample .env
 
