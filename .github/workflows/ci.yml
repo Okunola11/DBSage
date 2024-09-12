@@ -80,4 +80,4 @@ jobs:
 
       - name: Run tests
         run: |
-          PYTHONPATH=. pytest
+          poetry run PYTHONPATH=. pytest
