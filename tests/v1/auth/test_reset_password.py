@@ -6,8 +6,8 @@
 - Users should not be able to reset password with an invalid new password
 """
 
-from app.core.config.security import hash_password
-from app.utils.email_context import FORGOT_PASSWORD
+from db_sage.app.core.config.security import hash_password
+from db_sage.app.utils.email_context import FORGOT_PASSWORD
 
 base_url = "/api/v1/auth/reset-password"
 login_url = "/api/v1/auth/login"

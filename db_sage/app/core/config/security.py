@@ -126,7 +126,7 @@ async def load_user(email: str, db: Session):
         dict | none: the user obj if the user exists or none
     """
 
-    from app.v1.models.user import User
+    from db_sage.app.v1.models.user import User
     try:
         user = db.query(User).filter_by(email = email).first()
     except Exception as user_exec:

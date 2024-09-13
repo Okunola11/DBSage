@@ -10,12 +10,12 @@ from starlette.testclient import TestClient
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from main import app
-from app.core.config.email import fm
-from app.v1.services.user import user_service
-from app.core.config.security import hash_password
-from app.db.database import Base, get_db
-from app.v1.models.user import User
+from db_sage.main import app
+from db_sage.app.core.config.email import fm
+from db_sage.app.v1.services.user import user_service
+from db_sage.app.core.config.security import hash_password
+from db_sage.app.db.database import Base, get_db
+from db_sage.app.v1.models.user import User
 
 USER_FIRSTNAME = "John"
 USER_LASTNAME = "Doe"
