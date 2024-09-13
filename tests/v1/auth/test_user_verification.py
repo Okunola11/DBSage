@@ -6,9 +6,9 @@
 """
 
 import time
-from app.core.config.security import hash_password
-from app.v1.models.user import User
-from app.utils.email_context import USER_VERIFY_ACCOUNT
+from db_sage.app.core.config.security import hash_password
+from db_sage.app.v1.models.user import User
+from db_sage.app.utils.email_context import USER_VERIFY_ACCOUNT
 
 base_url = "/api/v1/auth/verify"
 

@@ -2,7 +2,7 @@
 - Only an authenticated superadmin can fetch any user by ID
 """
 
-from app.v1.services.user import user_service
+from db_sage.app.v1.services.user import user_service
 
 base_url = "/api/v1/users"
 

@@ -5,7 +5,7 @@
 - Inactive users should not be able to request forgot password email 
 """
 
-from app.core.config.email import fm
+from db_sage.app.core.config.email import fm
 
 base_url = "/api/v1/auth/forgot-password"
 

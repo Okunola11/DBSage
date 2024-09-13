@@ -4,7 +4,7 @@
 """
 
 from tests.conftest import USER_PASSWORD
-from app.v1.services.user import user_service
+from db_sage.app.v1.services.user import user_service
 
 base_url = "/api/v1/auth/refresh"
 

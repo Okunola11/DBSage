@@ -6,7 +6,7 @@
 - User email cannot be updated to an already existing user email.
 """
 
-from app.v1.services.user import user_service
+from db_sage.app.v1.services.user import user_service
 from conftest import USER_FIRSTNAME, USER_LASTNAME
 
 base_url = "/api/v1/users"
