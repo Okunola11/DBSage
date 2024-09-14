@@ -4,6 +4,7 @@ from typing import Annotated, Optional
 
 from db_sage.app.db.database import get_db
 from db_sage.app.core.dependencies.user import get_current_active_user
+from db_sage.app.v1.models import User
 from db_sage.app.v1.schemas.prompt import Prompt
 from db_sage.app.v1.responses.prompt import SqlQueryResultsResponse
 from db_sage.app.v1.services.prompt import prompt_service
@@ -13,7 +14,7 @@ prompt_router = APIRouter(prefix="/prompt", tags=["Prompt"])
 @prompt_router.post("", status_code=status.HTTP_200_OK, response_model=SqlQueryResultsResponse)
 async def get_sql_query_from_prompt(
     data: Prompt,
-    # user: Annotated[User, Depends(get_current_active_user)]
+    user: Annotated[User, Depends(get_current_active_user)]
 ):
     """
     Handles the HTTP POST request to generate and execute an SQL query based on the provided prompt.
