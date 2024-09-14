@@ -23,6 +23,8 @@ authlib = "^1.3.2"
 uuid7 = "^0.1.0"
 itsdangerous = "^2.2.0"
 httpx = "^0.27.2"
+openai = "^1.45.0"
+tiktoken = "^0.7.0"
 
 
 [build-system]
