@@ -3,6 +3,7 @@ import os
 from db_sage.app.core.config.db import PostgresManager
 from db_sage.app.utils import file
 from db_sage.app.utils.settings import settings
+from db_sage.app.core.config.db import DatabaseStateManager
 
 BASE_DIR = settings.BASE_DIR
 
@@ -97,47 +98,44 @@ class PostgresAgentInstruments(AgentInstruments):
     - **Persistent State Lifecycle:** The state of this class persists across agent orchestrations.
     """
 
-    def __init__(self, db_url: str, session_id: str) -> None:
+    def __init__(self, session_id: str) -> None:
         """Initializes the class instance.
 
         Args:
-            db_url (str): The URL for connecting to the Postgres database.
             session_id (str): The unique identifier for the current session.
         """
 
         super().__init__()
 
-        self.db_url = db_url
-        self.db = None
         self.session_id = session_id
         self.messages = []
         self.complete_keyword = "APPROVED"
-
         self.innovation_index = 0
+        self.db_state = DatabaseStateManager()
+        self.db = None
 
     def __enter__(self):
         """Context manager entry point.
 
-        Resets files in the root directory and establishes a connection to the Postgres database.
+        Resets files in the root directory and gets the current database connection.
 
         Returns:
             tuple: A tuple containing itself and the connected PostgresManager object.
         """
 
         self.reset_files()
-        self.db = PostgresManager()
-        self.db.connect_with_url(self.db_url)
+        self.db = self.db_state.get_connection()
+        if self.db is None:
+            raise Exception("No database connection available")
         return self, self.db
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit point.
 
-        Closes the database cursor and connection if they are open.
+        Sets the PostgresManager to none.
         """
-        if self.db.cur:
-            self.db.cur.close()
-        if self.db.conn:
-            self.db.conn.close()
+
+        self.db = None
 
     def sync_messages(self, messages: list):
         """Synchronizes messages with the orchestrator.
@@ -206,6 +204,9 @@ class PostgresAgentInstruments(AgentInstruments):
         Raises:
             Exception: If an error occurs during database interaction.
         """
+
+        if self.db is None:
+            raise Exception("No database connection available")
 
         results_as_json = self.db.run_sql(sql)
 
