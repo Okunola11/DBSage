@@ -1,6 +1,7 @@
 import json
 import psycopg2
 from datetime import datetime
+from fastapi import HTTPException
 
 class PostgresManager:
     """A context manager for managing PostgreSQL database connections.
@@ -47,10 +48,18 @@ class PostgresManager:
 
         Args:
             url: The URL of the PostgreSQL database to connect to.
+
+        Raises:
+            pscopg2 error: error during database connection.
         """
 
-        self.conn = psycopg2.connect(url)
-        self.cur = self.conn.cursor()
+        try:
+            self.conn = psycopg2.connect(url)
+            self.cur = self.conn.cursor()
+        except psycopg2.Error as e:
+            error_message = f"Error connecting to database: {e}"
+            print(error_message)
+            raise HTTPException(status_code=500, detail={"message": error_message})
 
     def run_sql(self, sql) -> str:
         """Executes a SQL query and returns the results as a JSON string.
@@ -61,6 +70,9 @@ class PostgresManager:
         Returns:
             JSON: result of the query.
         """
+
+        if not self.conn or not self.cur:
+            raise HTTPException(status_code=400, detail="No active database connection")
 
         try:
             self.cur.execute(sql)
@@ -141,6 +153,46 @@ class PostgresManager:
             print(f"Error retrieving table names: {e}")
             raise
         return [row[0] for row in self.cur.fetchall()]
+
+    def get_all_tables_and_columns(self):
+        """
+        Retrieves all tables in the public schema and their corresponding columns.
+        
+        Returns:
+            A list of dictionaries, where each dictionary represents a table.
+            The dictionary has two keys: 'table_name' and 'columns'.
+            'columns' is a list of column names for that table.
+        """
+        query = """
+        SELECT 
+            table_name,
+            array_agg(column_name::text) AS columns
+        FROM 
+            information_schema.columns
+        WHERE 
+            table_schema = 'public'
+        GROUP BY 
+            table_name
+        ORDER BY 
+            table_name;
+        """
+        
+        try:
+            self.cur.execute(query)
+            results = self.cur.fetchall()
+            
+            tables_and_columns = [
+                {
+                    'table_name': table_name,
+                    'columns': columns
+                }
+                for table_name, columns in results
+            ]
+            
+            return tables_and_columns
+        except psycopg2.Error as e:
+            print(f"Error retrieving tables and columns: {e}")
+            raise
 
     def get_table_definitions_for_prompt(self):
         """Retrieves the definitions of all tables in the 'public' schema as a formatted string.
@@ -231,3 +283,102 @@ class PostgresManager:
         related_tables_list = list(set(related_tables_list))
 
         return related_tables_list
+
+import threading
+from typing import Optional
+
+class DatabaseStateManager:
+    """
+    A singleton class for managing database connection state across the application.
+
+    This class provides a centralized way to manage a single database connection
+    that can be shared across different parts of the application. It ensures that
+    only one database connection is active at any given time.
+
+    Attributes:
+        db_url (Optional[str]): The URL of the current database connection.
+        db (Optional[PostgresManager]): The current database connection manager.
+
+    Methods:
+        set_connection(db_url: str) -> bool:
+            Establishes a new database connection.
+
+        get_connection() -> Optional[PostgresManager]:
+            Retrieves the current database connection.
+
+        close_connection() -> None:
+            Closes the current database connection.
+
+    Note:
+        This class uses a thread-safe singleton pattern to ensure that only one
+        instance of DatabaseStateManager exists throughout the application lifecycle.
+    """
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(DatabaseStateManager, cls).__new__(cls)
+                    cls._instance.db_url: Optional[str] = None
+                    cls._instance.db: Optional[PostgresManager] = None
+        return cls._instance
+
+    def set_connection(self, db_url: str) -> bool:
+        """
+        Establishes a new database connection.
+
+        This method attempts to create a new database connection using the provided URL.
+        If successful, it updates the internal state with the new connection.
+
+        Args:
+            db_url (str): The URL of the database to connect to.
+
+        Returns:
+            bool: True if the connection was successfully established, False otherwise.
+
+        Note:
+            If a previous connection exists, it will be closed before attempting to
+            establish a new one.
+        """
+
+        try:
+            new_db = PostgresManager()
+            new_db.connect_with_url(db_url)
+            self.db_url = db_url
+            self.db = new_db
+            return True
+        except Exception as e:
+            print(f"Failed to establish database connection: {e}")
+            self.db_url = None
+            self.db = None
+            return False
+
+    def get_connection(self) -> Optional[PostgresManager]:
+        """
+        Retrieves the current database connection.
+
+        Returns:
+            Optional[PostgresManager]: The current database connection manager if one
+            exists, None otherwise.
+        """
+
+        return self.db
+
+    def close_connection(self):
+        """
+        Closes the current database connection.
+
+        This method closes the current database connection if one exists and resets
+        the internal state.
+
+        Note:
+            This method is safe to call even if no connection currently exists.
+        """
+
+        if self.db:
+            self.db.__exit__(None, None, None)
+            self.db = None
+            self.db_url = None
