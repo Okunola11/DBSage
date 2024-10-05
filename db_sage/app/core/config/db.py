@@ -154,6 +154,46 @@ class PostgresManager:
             raise
         return [row[0] for row in self.cur.fetchall()]
 
+    def get_all_tables_and_columns(self):
+        """
+        Retrieves all tables in the public schema and their corresponding columns.
+        
+        Returns:
+            A list of dictionaries, where each dictionary represents a table.
+            The dictionary has two keys: 'table_name' and 'columns'.
+            'columns' is a list of column names for that table.
+        """
+        query = """
+        SELECT 
+            table_name,
+            array_agg(column_name::text) AS columns
+        FROM 
+            information_schema.columns
+        WHERE 
+            table_schema = 'public'
+        GROUP BY 
+            table_name
+        ORDER BY 
+            table_name;
+        """
+        
+        try:
+            self.cur.execute(query)
+            results = self.cur.fetchall()
+            
+            tables_and_columns = [
+                {
+                    'table_name': table_name,
+                    'columns': columns
+                }
+                for table_name, columns in results
+            ]
+            
+            return tables_and_columns
+        except psycopg2.Error as e:
+            print(f"Error retrieving tables and columns: {e}")
+            raise
+
     def get_table_definitions_for_prompt(self):
         """Retrieves the definitions of all tables in the 'public' schema as a formatted string.
 
