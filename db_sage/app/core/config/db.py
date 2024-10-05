@@ -1,6 +1,7 @@
 import json
 import psycopg2
 from datetime import datetime
+from fastapi import HTTPException
 
 class PostgresManager:
     """A context manager for managing PostgreSQL database connections.
@@ -47,10 +48,18 @@ class PostgresManager:
 
         Args:
             url: The URL of the PostgreSQL database to connect to.
+
+        Raises:
+            pscopg2 error: error during database connection.
         """
 
-        self.conn = psycopg2.connect(url)
-        self.cur = self.conn.cursor()
+        try:
+            self.conn = psycopg2.connect(url)
+            self.cur = self.conn.cursor()
+        except psycopg2.Error as e:
+            error_message = f"Error connecting to database: {e}"
+            print(error_message)
+            raise HTTPException(status_code=500, detail={"message": error_message})
 
     def run_sql(self, sql) -> str:
         """Executes a SQL query and returns the results as a JSON string.
@@ -61,6 +70,9 @@ class PostgresManager:
         Returns:
             JSON: result of the query.
         """
+
+        if not self.conn or not self.cur:
+            raise HTTPException(status_code=400, detail="No active database connection")
 
         try:
             self.cur.execute(sql)
