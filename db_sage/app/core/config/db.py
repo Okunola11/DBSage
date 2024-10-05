@@ -283,3 +283,102 @@ class PostgresManager:
         related_tables_list = list(set(related_tables_list))
 
         return related_tables_list
+
+import threading
+from typing import Optional
+
+class DatabaseStateManager:
+    """
+    A singleton class for managing database connection state across the application.
+
+    This class provides a centralized way to manage a single database connection
+    that can be shared across different parts of the application. It ensures that
+    only one database connection is active at any given time.
+
+    Attributes:
+        db_url (Optional[str]): The URL of the current database connection.
+        db (Optional[PostgresManager]): The current database connection manager.
+
+    Methods:
+        set_connection(db_url: str) -> bool:
+            Establishes a new database connection.
+
+        get_connection() -> Optional[PostgresManager]:
+            Retrieves the current database connection.
+
+        close_connection() -> None:
+            Closes the current database connection.
+
+    Note:
+        This class uses a thread-safe singleton pattern to ensure that only one
+        instance of DatabaseStateManager exists throughout the application lifecycle.
+    """
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super(DatabaseStateManager, cls).__new__(cls)
+                    cls._instance.db_url: Optional[str] = None
+                    cls._instance.db: Optional[PostgresManager] = None
+        return cls._instance
+
+    def set_connection(self, db_url: str) -> bool:
+        """
+        Establishes a new database connection.
+
+        This method attempts to create a new database connection using the provided URL.
+        If successful, it updates the internal state with the new connection.
+
+        Args:
+            db_url (str): The URL of the database to connect to.
+
+        Returns:
+            bool: True if the connection was successfully established, False otherwise.
+
+        Note:
+            If a previous connection exists, it will be closed before attempting to
+            establish a new one.
+        """
+
+        try:
+            new_db = PostgresManager()
+            new_db.connect_with_url(db_url)
+            self.db_url = db_url
+            self.db = new_db
+            return True
+        except Exception as e:
+            print(f"Failed to establish database connection: {e}")
+            self.db_url = None
+            self.db = None
+            return False
+
+    def get_connection(self) -> Optional[PostgresManager]:
+        """
+        Retrieves the current database connection.
+
+        Returns:
+            Optional[PostgresManager]: The current database connection manager if one
+            exists, None otherwise.
+        """
+
+        return self.db
+
+    def close_connection(self):
+        """
+        Closes the current database connection.
+
+        This method closes the current database connection if one exists and resets
+        the internal state.
+
+        Note:
+            This method is safe to call even if no connection currently exists.
+        """
+
+        if self.db:
+            self.db.__exit__(None, None, None)
+            self.db = None
+            self.db_url = None
