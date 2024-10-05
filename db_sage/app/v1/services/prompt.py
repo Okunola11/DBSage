@@ -7,9 +7,6 @@ from db_sage.app.core.config.instruments import PostgresAgentInstruments
 from db_sage.app.core.config import llm
 from db_sage.app.utils.types import TurboTool
 from db_sage.app.v1.responses.prompt import SqlQueryResultsResponse, SqlQueryResponseData
-from db_sage.app.utils.settings import settings
-
-DB_URL = settings.QUERY_DATABASE
 
 
 class PromptService(Service):
@@ -42,7 +39,7 @@ class PromptService(Service):
         Raises:
             HTTPException: If no similar tables are found or other issues arise, an HTTP 400 error is raised indicating the need for existing tables.
         """
-        with PostgresAgentInstruments(DB_URL, "prompt-endpoint") as (agent_instruments, db):
+        with PostgresAgentInstruments("prompt-endpoint") as (agent_instruments, db):
 
             # ---------------- BUILDING TABLE DEFINITIONS ----------------
 
