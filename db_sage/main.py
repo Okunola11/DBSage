@@ -58,7 +58,7 @@ async def http_exception(request: Request, exc: HTTPException):
     return JSONResponse(
         status_code=exc.status_code,
         content={
-            "status": False,
+            "success": False,
             "status_code": exc.status_code,
             "message": exc.detail
         }
@@ -84,7 +84,7 @@ async def validation_exception(request: Request, exc: RequestValidationError):
     return JSONResponse(
         status_code=422,
         content={
-            "status": False,
+            "success": False,
             "status_code": 422,
             "message": "Invalid input",
             "errors": errors
@@ -100,7 +100,7 @@ async def integrity_error(request: Request, exc: IntegrityError):
     return JSONResponse(
         status_code=400,
         content={
-            "status": False,
+            "success": False,
             "status_code": 400,
             "message": f"An unexpected error occured; {exc}"
         }
@@ -115,7 +115,7 @@ async def exception(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
         content={
-            "status": False,
+            "success": False,
             "status_code": 500,
             "messasge": f"An unexpected error occured; {exc}"
         }
