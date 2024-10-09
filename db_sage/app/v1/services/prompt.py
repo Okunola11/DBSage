@@ -122,6 +122,7 @@ class PromptService(Service):
             )
 
             response = SqlQueryResultsResponse(
+                success=True,
                 message="Successfully generated SQL Query.",
                 data=response_data
             )
