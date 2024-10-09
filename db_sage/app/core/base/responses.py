@@ -9,6 +9,7 @@ class BaseResponseData(BaseModel):
 class BaseResponse(BaseModel):
     """Base schema for all responses"""
 
+    success: bool
     status_code: int = 200
     message: str
     data: Optional[Any] = {}
