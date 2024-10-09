@@ -1,5 +1,7 @@
 import json
 from fastapi import HTTPException, status
+import csv
+import io
 
 from db_sage.app.core.base.services import Service
 from db_sage.app.core.config.embedder import DatabaseEmbedder
@@ -97,10 +99,26 @@ class PromptService(Service):
             sql_query = open(agent_instruments.sql_query_file).read()
             sql_query_results = open(agent_instruments.run_sql_results_file).read()
 
+            # Generate CSV data
+            csv_output = io.StringIO()
+            csv_writer = csv.writer(csv_output)
+            
+            # Write headers
+            if sql_query_results:
+                sql_results = json.loads(sql_query_results)
+                csv_writer.writerow(sql_results[0].keys())
+            
+                # Write data rows
+                for row in sql_results:
+                    csv_writer.writerow(row.values())
+            
+            csv_data = csv_output.getvalue()
+
             response_data = SqlQueryResponseData(
                 prompt=base_prompt,
-                results=json.loads(sql_query_results),
-                sql=sql_query
+                table_context=similar_tables,
+                sql=sql_query,
+                csv_data=csv_data,
             )
 
             response = SqlQueryResultsResponse(
