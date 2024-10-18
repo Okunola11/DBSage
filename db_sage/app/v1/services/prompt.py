@@ -102,16 +102,21 @@ class PromptService(Service):
             # Generate CSV data
             csv_output = io.StringIO()
             csv_writer = csv.writer(csv_output)
-            
-            # Write headers
+
             if sql_query_results:
                 sql_results = json.loads(sql_query_results)
-                csv_writer.writerow(sql_results[0].keys())
-            
-                # Write data rows
-                for row in sql_results:
-                    csv_writer.writerow(row.values())
-            
+                
+                if sql_results:
+                    # Write headers
+                    csv_writer.writerow(sql_results[0].keys())
+
+                    # Write data rows
+                    for row in sql_results:
+                        csv_writer.writerow(row.values())
+                else:
+                    csv_writer.writerow(["No data available"])
+
+            # Get the CSV data as a string
             csv_data = csv_output.getvalue()
 
             response_data = SqlQueryResponseData(

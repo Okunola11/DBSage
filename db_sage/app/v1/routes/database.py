@@ -98,3 +98,39 @@ async def close_database_connection(
     else:
         raise HTTPException(status_code=404, detail="No active database connection found.")
 
+
+@database_connection_router.get("/tables", status_code=status.HTTP_200_OK, response_model=success_response)
+async def get_tables(
+    user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Retrieve all database tables and their columns for the current user.
+
+    This endpoint fetches a list of all tables and their respective columns
+    from the connected database. It checks if there is an active database
+    connection, and if so, returns the tables and columns in a successful response.
+    
+    If no active connection is found, an HTTP 404 error is raised.
+
+    Args:
+        user (User): The currently authenticated user, fetched via the `get_current_active_user` dependency.
+
+    Returns:
+        success_response (dict): A JSON object containing the status code, 
+        a success message, and the list of tables with their columns from the database.
+
+    Raises:
+        HTTPException (404): If there is no active database connection.
+    """
+    
+    db_state = DatabaseStateManager()
+    if db_state.get_connection() is not None:
+        db = db_state.get_connection()
+        tables_and_columns = db.get_all_tables_and_columns()
+        return success_response(
+            status_code=200,
+            message="Database tables generated successfully.",
+            data=tables_and_columns
+        )
+    else:
+        raise HTTPException(status_code=404, detail="No active database connection found.")
