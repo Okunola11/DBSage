@@ -1,7 +1,8 @@
 import json
 import psycopg2
-from datetime import datetime
-from fastapi import HTTPException
+from datetime import datetime, timedelta
+from fastapi import HTTPException, status
+from typing import Dict, Optional
 
 class PostgresManager:
     """A context manager for managing PostgreSQL database connections.
@@ -285,33 +286,46 @@ class PostgresManager:
         return related_tables_list
 
 import threading
-from typing import Optional
 
 class DatabaseStateManager:
     """
-    A singleton class for managing database connection state across the application.
+    A singleton class for managing database connections for multiple users across the application.
 
-    This class provides a centralized way to manage a single database connection
-    that can be shared across different parts of the application. It ensures that
-    only one database connection is active at any given time.
+    This class provides a centralized way to manage database connections on a per-user basis,
+    ensuring proper isolation and resource management. It maintains separate connections for
+    different users and includes automatic cleanup of inactive connections.
 
     Attributes:
-        db_url (Optional[str]): The URL of the current database connection.
-        db (Optional[PostgresManager]): The current database connection manager.
+        _connections (Dict[str, PostgresManager]): Dictionary mapping user IDs to their database connections.
+        _urls (Dict[str, str]): Dictionary mapping user IDs to their database URLs.
+        _last_used (Dict[str, datetime]): Dictionary tracking when each connection was last accessed.
+        _cleanup_threshold (timedelta): Time after which inactive connections are cleaned up.
 
     Methods:
-        set_connection(db_url: str) -> bool:
-            Establishes a new database connection.
+        set_connection(user_id: str, db_url: str) -> bool:
+            Establishes a new database connection for a specific user.
 
-        get_connection() -> Optional[PostgresManager]:
-            Retrieves the current database connection.
+        get_connection(user_id: str) -> Optional[PostgresManager]:
+            Retrieves the database connection for a specific user.
 
-        close_connection() -> None:
-            Closes the current database connection.
+        close_connection(user_id: str) -> None:
+            Closes the database connection for a specific user.
+
+        check_connection_health(user_id: str) -> bool:
+            Checks if a user's database connection is alive and functioning.
+
+        get_active_connections() -> Dict[str, dict]:
+            Retrieves information about all active database connections.
+
+        get_connection_status(user_id: str) -> dict:
+            Gets detailed status information about a user's database connection.
+
+        cleanup_inactive_connections() -> None:
+            Cleans up connections that have been inactive for longer than the threshold.
 
     Note:
         This class uses a thread-safe singleton pattern to ensure that only one
-        instance of DatabaseStateManager exists throughout the application lifecycle.
+        instance exists throughout the application lifecycle.
     """
 
     _instance = None
@@ -322,63 +336,192 @@ class DatabaseStateManager:
             with cls._lock:
                 if cls._instance is None:
                     cls._instance = super(DatabaseStateManager, cls).__new__(cls)
-                    cls._instance.db_url: Optional[str] = None
-                    cls._instance.db: Optional[PostgresManager] = None
+                    cls._instance._connections: Dict[str, PostgresManager] = {}
+                    cls._instance._urls: Dict[str, str] = {}
         return cls._instance
 
-    def set_connection(self, db_url: str) -> bool:
-        """
-        Establishes a new database connection.
+    def __init__(self):
+        self._last_used: Dict[str, datetime] = {}
+        self._cleanup_threshold = timedelta(hours=1) 
 
-        This method attempts to create a new database connection using the provided URL.
-        If successful, it updates the internal state with the new connection.
+    def set_connection(self, user_id: str, db_url: str) -> bool:
+        """
+        Establishes a new database connection for a specific user.
+
+        This method attempts to create a new database connection using the provided URL
+        and associates it with the specified user ID. If the user already has the maximum
+        allowed connections, it will raise an HTTPException.
 
         Args:
+            user_id (str): The ID of the user for whom to establish the connection.
             db_url (str): The URL of the database to connect to.
 
         Returns:
             bool: True if the connection was successfully established, False otherwise.
 
+        Raises:
+            HTTPException: If the user has reached the maximum allowed number of connections
+                (HTTP 400) or if the connection attempt fails (HTTP 500).
+
         Note:
-            If a previous connection exists, it will be closed before attempting to
-            establish a new one.
+            If a previous connection exists for this user, it will be closed before
+            attempting to establish a new one. There is a limit of one connection
+            per user by default.
         """
+
+        MAX_CONNECTIONS_PER_USER = 1
+        if len([k for k in self._connections.keys() if k.startswith(user_id)]) >= MAX_CONNECTIONS_PER_USER:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Maximum number of connections reached for this user"
+            )
 
         try:
             new_db = PostgresManager()
             new_db.connect_with_url(db_url)
-            self.db_url = db_url
-            self.db = new_db
+            
+            # Close existing connection if it exists
+            self.close_connection(user_id)
+            
+            self._connections[user_id] = new_db
+            self._urls[user_id] = db_url
             return True
         except Exception as e:
             print(f"Failed to establish database connection: {e}")
-            self.db_url = None
-            self.db = None
             return False
 
-    def get_connection(self) -> Optional[PostgresManager]:
+    def get_connection(self, user_id: str) -> Optional[PostgresManager]:
         """
-        Retrieves the current database connection.
+        Retrieves the database connection for a specific user.
+
+        This method returns the PostgresManager instance associated with the given user ID
+        if one exists. It also updates the last usage timestamp for the connection.
+
+        Args:
+            user_id (str): The ID of the user whose connection to retrieve.
 
         Returns:
-            Optional[PostgresManager]: The current database connection manager if one
-            exists, None otherwise.
-        """
-
-        return self.db
-
-    def close_connection(self):
-        """
-        Closes the current database connection.
-
-        This method closes the current database connection if one exists and resets
-        the internal state.
+            Optional[PostgresManager]: The database connection manager for the specified user
+            if one exists, None otherwise.
 
         Note:
-            This method is safe to call even if no connection currently exists.
+            Each access to the connection updates the last_used timestamp, which is used
+            for cleaning up inactive connections.
         """
 
-        if self.db:
-            self.db.__exit__(None, None, None)
-            self.db = None
-            self.db_url = None
+        conn = self._connections.get(user_id)
+        if conn:
+            self._last_used[user_id] = datetime.now()
+        return conn
+
+    def close_connection(self, user_id: str):
+        """
+        Closes the database connection for a specific user.
+
+        This method closes the database connection associated with the given user ID
+        if one exists and removes it from the internal state tracking.
+
+        Args:
+            user_id (str): The ID of the user whose connection to close.
+
+        Note:
+            This method is safe to call even if no connection exists for the specified user.
+            It will clean up all associated resources including the connection URL and
+            last used timestamp.
+        """
+
+        if user_id in self._connections:
+            self._connections[user_id].__exit__(None, None, None)
+            del self._connections[user_id]
+            del self._urls[user_id]
+
+    def cleanup_inactive_connections(self):
+        """
+        Cleans up database connections that have been inactive for longer than the cleanup threshold.
+
+        This method checks all connections and closes those that haven't been used
+        for longer than the specified cleanup threshold (default: 1 hour).
+
+        Note:
+            This method is typically called periodically by the application's
+            background task scheduler.
+        """
+
+        now = datetime.now()
+        for user_id, last_used in list(self._last_used.items()):
+            if now - last_used > self._cleanup_threshold:
+                self.close_connection(user_id)
+
+    def get_connection_status(self, user_id: str) -> dict:
+        """
+        Gets detailed status information about a specific user's database connection.
+
+        Args:
+            user_id (str): The ID of the user whose connection status to check.
+
+        Returns:
+            dict: A dictionary containing connection status information including:
+                - has_connection: Whether an active connection exists
+                - db_url: The URL of the database connection
+                - last_used: Timestamp of last connection usage
+                - connection_age: Time elapsed since the connection was last used
+        """
+
+        connection = self._connections.get(user_id)
+        url = self._urls.get(user_id)
+        last_used = self._last_used.get(user_id)
+        
+        return {
+            "has_connection": connection is not None,
+            "db_url": url,
+            "last_used": last_used,
+            "connection_age": (datetime.now() - last_used) if last_used else None
+        }
+
+    def get_active_connections(self) -> Dict[str, dict]:
+        """
+        Retrieves information about all currently active database connections.
+
+        Returns:
+            Dict[str, dict]: A dictionary mapping user IDs to connection information,
+            including database URLs and last usage timestamps.
+
+        Note:
+            This method is particularly useful for monitoring and administrative purposes.
+        """
+
+        return {
+            user_id: {
+                "db_url": self._urls[user_id],
+                "last_used": self._last_used.get(user_id),
+            }
+            for user_id in self._connections.keys()
+        }
+
+    async def check_connection_health(self, user_id: str) -> bool:
+        """
+        Checks if a user's database connection is healthy and responsive.
+
+        Args:
+            user_id (str): The ID of the user whose connection to check.
+
+        Returns:
+            bool: True if the connection is healthy and responsive, False otherwise.
+
+        Note:
+            If the connection is found to be dead, it will be automatically closed
+            and cleaned up.
+        """
+
+        connection = self._connections.get(user_id)
+        if not connection:
+            return False
+        
+        try:
+            # Assuming PostgresManager has a method to test connection
+            await connection.execute("SELECT 1")
+            return True
+        except Exception:
+            # Connection is dead, clean it up
+            self.close_connection(user_id)
+            return False
