@@ -46,8 +46,10 @@ async def connect_database(
     db_url = data.db_url
 
     db_state = DatabaseStateManager()
-    if db_state.set_connection(db_url):
-        db = db_state.get_connection()
+    success = db_state.set_connection(user.id, db_url)
+
+    if success:
+        db = db_state.get_connection(user.id)
         tables_and_columns = db.get_all_tables_and_columns()
         return success_response(
             status_code=200,
@@ -89,8 +91,8 @@ async def close_database_connection(
     """
 
     db_state = DatabaseStateManager()
-    if db_state.get_connection() is not None:
-        db_state.close_connection()
+    if db_state.get_connection(user.id) is not None:
+        db_state.close_connection(user.id)
         return success_response(
             status_code=200,
             message="Database connection closed successfully.",
@@ -122,10 +124,11 @@ async def get_tables(
     Raises:
         HTTPException (404): If there is no active database connection.
     """
-    
+
     db_state = DatabaseStateManager()
-    if db_state.get_connection() is not None:
-        db = db_state.get_connection()
+    db = db_state.get_connection(user.id)
+
+    if db is not None:
         tables_and_columns = db.get_all_tables_and_columns()
         return success_response(
             status_code=200,
@@ -133,4 +136,4 @@ async def get_tables(
             data=tables_and_columns
         )
     else:
-        raise HTTPException(status_code=404, detail="No active database connection found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active database connection found.")
