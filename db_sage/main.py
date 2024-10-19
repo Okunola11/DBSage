@@ -1,4 +1,5 @@
 import uvicorn
+import asyncio
 from fastapi import FastAPI, status, HTTPException, Request
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -10,10 +11,47 @@ from starlette.middleware.sessions import SessionMiddleware # required by google
 from db_sage.app.utils.settings import settings
 from db_sage.app.utils.logger import logger
 from db_sage.app.v1.routes import api_version_one
+from db_sage.app.core.config.db import DatabaseStateManager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    yield
+     # Startup
+    print("Starting up application...")
+    cleanup_task = None
+    
+    try:
+        # Initialize periodic cleanup
+        from fastapi_utils.tasks import repeat_every
+        
+        @repeat_every(seconds=3600)
+        async def cleanup_old_connections():
+            print("Running periodic connection cleanup...")
+            DatabaseStateManager().cleanup_inactive_connections()
+        
+        # Start the cleanup task
+        cleanup_task = asyncio.create_task(cleanup_old_connections())
+        
+        yield
+        
+    finally:
+        # Shutdown
+        print("Shutting down application...")
+        
+        # Cancel cleanup task if it exists
+        if cleanup_task:
+            cleanup_task.cancel()
+            try:
+                await cleanup_task
+            except asyncio.CancelledError:
+                pass
+        
+        # Clean up all database connections
+        db_state = DatabaseStateManager()
+        connections = list(db_state._connections.keys())
+        if connections:
+            print(f"Closing {len(connections)} database connections...")
+            for user_id in connections:
+                db_state.close_connection(user_id)
 
 app = FastAPI(lifespan=lifespan)
 
