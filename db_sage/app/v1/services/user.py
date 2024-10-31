@@ -352,6 +352,7 @@ class UserService(Service):
         pydantic_model = UserLoginResponse(
             message="Login successful",
             access_token=tokens['access_token'],
+            expires_in=tokens['expires_in'],
             data=user_data
         )
 
@@ -413,6 +414,7 @@ class UserService(Service):
         pydantic_model = RefreshTokenResponse(
             message="Refresh successful",
             access_token=tokens['access_token'],
+            expires_in=tokens['expires_in']
         )
 
         # create a response object
