@@ -439,6 +439,12 @@ class DatabaseStateManager:
             del self._connections[user_id]
             del self._urls[user_id]
 
+        if user_id in self._last_used:
+            del self._last_used[user_id]
+
+        if user_id in self._created_at:
+            del self._created_at[user_id]
+
     def cleanup_inactive_connections(self):
         """
         Cleans up database connections that have been inactive for longer than the cleanup threshold.
@@ -450,7 +456,7 @@ class DatabaseStateManager:
             This method is typically called periodically by the application's
             background task scheduler.
         """
-        
+
         now = datetime.now(timezone.utc)
         for user_id, last_used in list(self._last_used.items()):
             last_used_time = datetime.fromisoformat(last_used)
