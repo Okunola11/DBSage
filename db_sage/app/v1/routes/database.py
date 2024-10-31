@@ -137,3 +137,40 @@ async def get_tables(
         )
     else:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active database connection found.")
+
+
+@database_connection_router.get("/status", status_code=status.HTTP_200_OK, response_model=success_response)
+async def get_connection_status(
+    user: Annotated[User, Depends(get_current_active_user)]
+):
+    """
+    Retrieve the database connection status for the current user.
+
+    Fetches detailed status information about the user's database connection.
+
+    Args:
+        user (User): The currently authenticated user.
+
+    Returns:
+        success_response (dict): A JSON object containing the status code, 
+        a success message, and the connection status details, including:
+            - has_connection: Whether an active connection exists
+            - db_url: The URL of the database connection
+            - last_used: Timestamp of last connection usage
+            - connection_age: Time elapsed since the connection was set
+
+    Raises:
+        HTTPException (404): If no active database connection is found.
+    """
+
+    db_state = DatabaseStateManager()
+    data = db_state.get_connection_status(user.id)
+
+    if data is not None:
+        return success_response(
+            status_code=200,
+            message="Database connection status retrieved successfully.",
+            data=data
+        )
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active database connection found.")
