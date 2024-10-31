@@ -29,11 +29,13 @@ class UserLoginResponse(BaseResponse):
 
     access_token: str
     data: UserResponseData
+    expires_in: int
 
 class RefreshTokenResponse(BaseResponse):
     """Schema for token refresh response"""
 
     access_token: str
+    expires_in: int
 
 class SuperAdminUserResponseData(BaseResponseData):
     """Schema for super admin fetch user data"""
