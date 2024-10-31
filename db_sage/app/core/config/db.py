@@ -450,9 +450,11 @@ class DatabaseStateManager:
             This method is typically called periodically by the application's
             background task scheduler.
         """
-        now = datetime.now()
+        
+        now = datetime.now(timezone.utc)
         for user_id, last_used in list(self._last_used.items()):
-            if now - last_used > self._cleanup_threshold:
+            last_used_time = datetime.fromisoformat(last_used)
+            if now - last_used_time > self._cleanup_threshold:
                 self.close_connection(user_id)
 
     def get_connection_status(self, user_id: str) -> dict:
