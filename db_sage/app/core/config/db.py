@@ -1,6 +1,6 @@
 import json
 import psycopg2
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from typing import Dict, Optional
 
@@ -338,10 +338,11 @@ class DatabaseStateManager:
                     cls._instance = super(DatabaseStateManager, cls).__new__(cls)
                     cls._instance._connections: Dict[str, PostgresManager] = {}
                     cls._instance._urls: Dict[str, str] = {}
+                    cls._instance._last_used: Dict[str, datetime] = {}
+                    cls._instance._created_at: Dict[str, datetime] = {}
         return cls._instance
 
     def __init__(self):
-        self._last_used: Dict[str, datetime] = {}
         self._cleanup_threshold = timedelta(hours=1) 
 
     def set_connection(self, user_id: str, db_url: str) -> bool:
@@ -385,6 +386,7 @@ class DatabaseStateManager:
             
             self._connections[user_id] = new_db
             self._urls[user_id] = db_url
+            self._created_at[user_id] = datetime.now(timezone.utc)
             return True
         except Exception as e:
             print(f"Failed to establish database connection: {e}")
@@ -411,7 +413,9 @@ class DatabaseStateManager:
 
         conn = self._connections.get(user_id)
         if conn:
-            self._last_used[user_id] = datetime.now()
+            now_utc = datetime.now(timezone.utc)
+            self._last_used[user_id] = now_utc.isoformat()
+
         return conn
 
     def close_connection(self, user_id: str):
@@ -435,6 +439,12 @@ class DatabaseStateManager:
             del self._connections[user_id]
             del self._urls[user_id]
 
+        if user_id in self._last_used:
+            del self._last_used[user_id]
+
+        if user_id in self._created_at:
+            del self._created_at[user_id]
+
     def cleanup_inactive_connections(self):
         """
         Cleans up database connections that have been inactive for longer than the cleanup threshold.
@@ -447,9 +457,10 @@ class DatabaseStateManager:
             background task scheduler.
         """
 
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         for user_id, last_used in list(self._last_used.items()):
-            if now - last_used > self._cleanup_threshold:
+            last_used_time = datetime.fromisoformat(last_used)
+            if now - last_used_time > self._cleanup_threshold:
                 self.close_connection(user_id)
 
     def get_connection_status(self, user_id: str) -> dict:
@@ -464,18 +475,24 @@ class DatabaseStateManager:
                 - has_connection: Whether an active connection exists
                 - db_url: The URL of the database connection
                 - last_used: Timestamp of last connection usage
-                - connection_age: Time elapsed since the connection was last used
+                - connection_age: Time elapsed since the connection was set
         """
 
         connection = self._connections.get(user_id)
         url = self._urls.get(user_id)
-        last_used = self._last_used.get(user_id)
+        last_used_iso = self._last_used.get(user_id)
+        created_at = self._created_at.get(user_id)
+
+        if created_at:
+            connection_age = str(datetime.now(timezone.utc) - created_at)
+        else:
+            connection_age = None
         
         return {
             "has_connection": connection is not None,
             "db_url": url,
-            "last_used": last_used,
-            "connection_age": (datetime.now() - last_used) if last_used else None
+            "last_used": last_used_iso,
+            "connection_age": connection_age
         }
 
     def get_active_connections(self) -> Dict[str, dict]:
