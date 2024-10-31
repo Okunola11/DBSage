@@ -40,8 +40,8 @@ async def get_sql_query_from_prompt(
     """
 
     db_state = DatabaseStateManager()
-    if not db_state.get_connection():
+    if not db_state.get_connection(user.id):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
          detail="No database connection established. Please connect to a database first.")
 
-    return prompt_service.generate_and_run_sql(data)
+    return prompt_service.generate_and_run_sql(data, user.id)
