@@ -12,7 +12,7 @@ from db_sage.app.v1.responses.prompt import SqlQueryResultsResponse, SqlQueryRes
 
 
 class PromptService(Service):
-    def generate_and_run_sql(self, data):
+    def generate_and_run_sql(self, data, id):
         """
         Generates and executes an SQL query based on the provided prompt and table definitions.
 
@@ -41,7 +41,7 @@ class PromptService(Service):
         Raises:
             HTTPException: If no similar tables are found or other issues arise, an HTTP 400 error is raised indicating the need for existing tables.
         """
-        with PostgresAgentInstruments("prompt-endpoint") as (agent_instruments, db):
+        with PostgresAgentInstruments("prompt-endpoint", id) as (agent_instruments, db):
 
             # ---------------- BUILDING TABLE DEFINITIONS ----------------
 
