@@ -98,16 +98,18 @@ class PostgresAgentInstruments(AgentInstruments):
     - **Persistent State Lifecycle:** The state of this class persists across agent orchestrations.
     """
 
-    def __init__(self, session_id: str) -> None:
+    def __init__(self, session_id: str, user_id: str) -> None:
         """Initializes the class instance.
 
         Args:
             session_id (str): The unique identifier for the current session.
+            user_id(str): The id of the current authenticated user.
         """
 
         super().__init__()
 
         self.session_id = session_id
+        self.user_id = user_id
         self.messages = []
         self.complete_keyword = "APPROVED"
         self.innovation_index = 0
@@ -124,7 +126,7 @@ class PostgresAgentInstruments(AgentInstruments):
         """
 
         self.reset_files()
-        self.db = self.db_state.get_connection()
+        self.db = self.db_state.get_connection(self.user_id)
         if self.db is None:
             raise Exception("No database connection available")
         return self, self.db
