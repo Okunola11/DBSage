@@ -46,13 +46,13 @@ def test_google_login(client, test_session, mock_google_oauth2):
     response = client.get("/api/v1/auth/google")
 
     assert response.status_code == 200
-    assert response.json()['tokens']['token_type'] == 'bearer'
-    assert response.json()['user']['email'] == return_value['userinfo']['email']
-    assert response.json()['user']['first_name'] == return_value['userinfo']['given_name']
-    assert response.json()['user']['last_name'] == return_value['userinfo']['family_name']
+    assert response.json()['message'] == 'Login successful'
+    assert response.json()['data']['email'] == return_value['userinfo']['email']
+    assert response.json()['data']['first_name'] == return_value['userinfo']['given_name']
+    assert response.json()['data']['last_name'] == return_value['userinfo']['family_name']
 
     # test user is saved to db and the oauth data is saved
-    user_id = response.json()['user']['id']
+    user_id = response.json()['data']['id']
     user = test_session.query(User).filter_by(id=user_id).first()
 
     assert user.first_name == return_value['userinfo']['given_name']
