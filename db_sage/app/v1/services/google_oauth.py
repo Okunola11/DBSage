@@ -1,14 +1,15 @@
-from fastapi import Depends, HTTPException, status
-from datetime import datetime, timezone
+from fastapi import Depends, HTTPException, status, Response
+from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from typing import Annotated, Union
 
 from db_sage.app.db.database import get_db
-from db_sage.app.v1.models.user import User
+from db_sage.app.v1.models.user import User, UserToken
 from db_sage.app.v1.models.oauth import OAuth
 from db_sage.app.core.base.services import Service
 from db_sage.app.utils.logger import logger
-from db_sage.app.v1.schemas.google_oauth import UserData, Tokens, StatusResponse
+from db_sage.app.v1.services.user import user_service
+from db_sage.app.v1.responses.user import UserResponseData, UserLoginResponse
 
 
 class GoogleOAuthService(Service):
@@ -42,7 +43,7 @@ class GoogleOAuthService(Service):
                     print("OAuth data already exists")
                     self.update(oauth_data, google_response, db)
                     # pass the existing user to the get_response method to generate a response object 
-                    user_response = self.get_response(existing_user)
+                    user_response = self.get_response(existing_user, db)
                     # return the response
                     return user_response
                 else:
@@ -54,7 +55,7 @@ class GoogleOAuthService(Service):
                             user_id=existing_user.id,
                             provider="google",
                             sub=user_info.get("sub"),
-                            access_token=google_response.get("access_token"),
+                            access_token=google_response.get("access_token", ""),
                             refresh_token=google_response.get("refresh_token", "")
                         )
                         # add and commit to get the inserted_id
@@ -65,7 +66,7 @@ class GoogleOAuthService(Service):
                         existing_user.update_at = datetime.now(timezone.utc)
                         db.commit()
                         # pass the user object to get_response method to generate a response object 
-                        user_response = self.get_response(existing_user)
+                        user_response = self.get_response(existing_user, db)
                         # return the response
                         return user_response
                     except Exception as exc:
@@ -79,7 +80,11 @@ class GoogleOAuthService(Service):
                     new_user = User(
                         first_name=user_info.get("given_name"),
                         last_name=user_info.get("family_name"),
-                        email=user_info.get("email")
+                        email=user_info.get("email"),
+                        is_active=True,
+                        is_verified=True,
+                        updated_at=datetime.now(timezone.utc),
+                        verified_at=datetime.now(timezone.utc)
                     )
                     # commit to get the user_id
                     db.add(new_user)
@@ -91,7 +96,7 @@ class GoogleOAuthService(Service):
                         user_id=new_user.id,
                         provider="google",
                         sub=user_info.get("sub"),
-                        access_token=google_response.get("access_token"),
+                        access_token=google_response.get("access_token", ""),
                         refresh_token=google_response.get("refresh_token", "")
                     )
                     # add and commit to get the inserted_id
@@ -112,7 +117,7 @@ class GoogleOAuthService(Service):
                 db.refresh(new_user)
 
                 # pass the user object to the get_response model to get a response
-                user_response = self.get_response(new_user)
+                user_response = self.get_response(new_user, db)
                 # return the user response
                 return user_response
 
@@ -141,7 +146,7 @@ class GoogleOAuthService(Service):
         """
         try:
             # update the access and refresh token 
-            oauth_data.access_token = google_response.get("access_token")
+            oauth_data.access_token = google_response.get("access_token", "")
             oauth_data.refresh_token = google_response.get("refresh_token", "")
             oauth_data.updated_at = datetime.now(timezone.utc)
             # commit and return the user object 
@@ -150,7 +155,7 @@ class GoogleOAuthService(Service):
             db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Exception occured in update method; {exc}")
 
-    def get_response(self, user: object) -> object:
+    def get_response(self, user: object, db: Annotated[Session, Depends(get_db)]) -> object:
         """Creates a response for the end user 
 
         Args:
@@ -161,24 +166,41 @@ class GoogleOAuthService(Service):
         """
 
         try:
-            # create a user data for response
-            user_response = UserData.model_validate(user, strict=True, from_attributes=True)
-            # create access token
-            ########################
-            # create refresh token
-            ###########################
-            tokens = Tokens(
-                access_token="some_random_stuff",
-                refresh_token="some random stuff",
-                token_type="bearer"
+            # check if the user has existing tokens that are yet to expire
+            existing_token = db.query(UserToken).filter(
+                UserToken.user_id == user.id, 
+                UserToken.expires_at > datetime.utcnow()
+                ).first()
+
+            if existing_token:
+                existing_token.expires_at = datetime.utcnow()
+                db.add(existing_token)
+                db.commit()
+
+            tokens = user_service._generate_tokens(user, db)
+
+            user_data = UserResponseData.model_validate(user)
+
+            pydantic_model = UserLoginResponse(
+                message="Login successful",
+                access_token=tokens['access_token'],
+                expires_in=tokens['expires_in'],
+                data=user_data
             )
-            # return the response data
-            return StatusResponse(
-                message="Authentication was successful",
-                status="successful",
-                status_code=200,
-                tokens=tokens,
-                user=user_response
+
+            # create a response object
+            response = Response(
+                content=pydantic_model.json(), status_code=status.HTTP_200_OK, media_type='application/json'
+                )
+
+            response.set_cookie(
+                key="refresh_token",
+                value=tokens['refresh_token'],
+                expires=timedelta(days=30),
+                httponly=True,
+                secure=True,
+                samesite="none"
             )
+            return response
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Exception occured in get_response method; {exc}")
