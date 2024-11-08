@@ -1,5 +1,7 @@
-# WASIX
-Wasix backend project. 
+# DBSage
+DBSage backend project.
+
+Talk to your `SQL` database in natural language.
 
 ## Setup
 
