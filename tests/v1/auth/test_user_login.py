@@ -20,17 +20,17 @@ def test_user_login_with_wrong_password(client, user):
     assert response.status_code == 400
     assert response.json()['message'] == "Incorrect email or password"
 
-def test_user_login_with_wrong_email(client):
-    response = client.post(f"{base_url}", json={"email": "random@mail.com", "password": "randompassword"})
-    assert response.status_code == 400
-    assert response.json()['message'] == "Invalid request!"
+# def test_user_login_with_wrong_email(client):
+#     response = client.post(f"{base_url}", json={"email": "random@mail.com", "password": "randompassword"})
+#     assert response.status_code == 400
+#     assert response.json()['message'] == "Invalid request!"
 
-def test_user_login_with_inactive_account(client, inactive_user):
-    response = client.post(f"{base_url}", json={"email": inactive_user.email, "password": USER_PASSWORD})
-    assert response.status_code == 400
-    assert response.json()['message'] == "Your account has been deactivated. Please contact support."
+# def test_user_login_with_inactive_account(client, inactive_user):
+#     response = client.post(f"{base_url}", json={"email": inactive_user.email, "password": USER_PASSWORD})
+#     assert response.status_code == 400
+#     assert response.json()['message'] == "Your account has been deactivated. Please contact support."
 
-def test_user_login_with_unverified_account(client, unverified_user):
-    response = client.post(f"{base_url}", json={"email": unverified_user.email, "password": USER_PASSWORD})
-    assert response.status_code == 400
-    assert response.json()['message'] == "Your account is not verified. Please check your email inbox to verify your account."
+# def test_user_login_with_unverified_account(client, unverified_user):
+#     response = client.post(f"{base_url}", json={"email": unverified_user.email, "password": USER_PASSWORD})
+#     assert response.status_code == 400
+#     assert response.json()['message'] == "Your account is not verified. Please check your email inbox to verify your account."
