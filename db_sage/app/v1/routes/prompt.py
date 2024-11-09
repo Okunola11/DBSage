@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, Request
 from sqlalchemy.orm import Session
 from typing import Annotated
 
@@ -9,11 +9,14 @@ from db_sage.app.v1.schemas.prompt import Prompt
 from db_sage.app.v1.responses.prompt import SqlQueryResultsResponse
 from db_sage.app.v1.services.prompt import prompt_service
 from db_sage.app.core.config.db import DatabaseStateManager
+from db_sage.app.core.dependencies.limiter import limiter
 
 prompt_router = APIRouter(prefix="/prompt", tags=["Prompt"])
 
 @prompt_router.post("", status_code=status.HTTP_200_OK, response_model=SqlQueryResultsResponse)
+@limiter.limit("5/minute")
 async def get_sql_query_from_prompt(
+    request: Request,
     data: Prompt,
     user: Annotated[User, Depends(get_current_active_user)]
 ):
