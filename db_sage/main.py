@@ -7,6 +7,10 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 from starlette.middleware.sessions import SessionMiddleware # required by google oauth
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from db_sage.app.utils.settings import settings
 from db_sage.app.utils.logger import logger
@@ -53,7 +57,22 @@ async def lifespan(app: FastAPI):
             for user_id in connections:
                 db_state.close_connection(user_id)
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="DBSage",
+    description="Talk to your SQL database",
+    version="1.0.0"
+)
+
+# Create a limiter instance
+limiter = Limiter(key_func=get_remote_address)
+
+# Add rate limit error handler
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# Add rate limiting middleware
+app.add_middleware(SlowAPIMiddleware)
 
 origins = [
     "http://localhost:3000",
@@ -156,6 +175,18 @@ async def exception(request: Request, exc: Exception):
             "success": False,
             "status_code": 500,
             "messasge": f"An unexpected error occured; {exc}"
+        }
+    )
+
+@app.exception_handler(RateLimitExceeded)
+async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "status_code": 429,
+            "message": "Slow down, you are making too many requests"
         }
     )
 
