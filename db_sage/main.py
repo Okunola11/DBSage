@@ -57,7 +57,12 @@ async def lifespan(app: FastAPI):
             for user_id in connections:
                 db_state.close_connection(user_id)
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    lifespan=lifespan,
+    title="DBSage",
+    description="Talk to your SQL database",
+    version="1.0.0"
+)
 
 # Create a limiter instance
 limiter = Limiter(key_func=get_remote_address)
