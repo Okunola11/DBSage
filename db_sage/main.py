@@ -173,6 +173,18 @@ async def exception(request: Request, exc: Exception):
         }
     )
 
+@app.exception_handler(RateLimitExceeded)
+async def custom_rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
+    
+    return JSONResponse(
+        status_code=429,
+        content={
+            "success": False,
+            "status_code": 429,
+            "message": "Slow down, you are making too many requests"
+        }
+    )
+
 
 def main():
     return uvicorn.run("db_sage.main:app", port=8000, reload=True)
