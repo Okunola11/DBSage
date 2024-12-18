@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Optional
 from typing_extensions import List
 from datetime import datetime
 from pydantic import EmailStr
@@ -12,6 +12,7 @@ class UserResponseData(BaseResponseData):
     email: EmailStr
     last_name: str
     first_name: str
+    avatar_url: Optional[str] = None
     is_active: bool = False
     is_verified: bool = False
     is_superadmin: bool = False
