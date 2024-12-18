@@ -9,6 +9,7 @@ class User(BaseTableModel):
     password = Column(String, nullable=True)
     first_name = Column(String, nullable=True)
     last_name = Column(String, nullable=True)
+    avatar_url = Column(String, nullable=True)
     is_superadmin = Column(Boolean, server_default=text("false"))
     is_active = Column(Boolean, server_default=text("false"))
     is_verified = Column(Boolean, server_default=text("false"))
