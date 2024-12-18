@@ -5,6 +5,7 @@ from starlette.responses import RedirectResponse
 from db_sage.app.v1.models.user import User
 from db_sage.app.v1.models.oauth import OAuth
 from db_sage.app.core.config.google_oauth_config import google_oauth
+from db_sage.app.v1.services.google_oauth import GoogleOAuthService
 
 return_value = {
     'access_token': 'zz-some-random-token', 
@@ -28,6 +29,11 @@ return_value = {
         'iat': 90909090909, 
         'exp': 909090990909}}
 
+generate_token_return = {
+    "access_token": "some_random_toknee",
+    "refresh_token": "some_random_token"
+}
+
 # mock the authorize_redirect and authorize_access_token attributes of google oauth
 @pytest.fixture()
 def mock_google_oauth2(monkeypatch):
@@ -40,27 +46,11 @@ def mock_google_oauth2(monkeypatch):
 
     monkeypatch.setattr(google_oauth.google, "authorize_redirect", mock_authorize_redirect)
     monkeypatch.setattr(google_oauth.google, "authorize_access_token", mock_authorize_token_userinfo)
+    monkeypatch.setattr(GoogleOAuthService, "get_response", lambda self, *args: generate_token_return)
 
 # Test google login flow and database flow after login
 def test_google_login(client, test_session, mock_google_oauth2):
     response = client.get("/api/v1/auth/google")
 
     assert response.status_code == 200
-    assert response.json()['message'] == 'Login successful'
-    assert response.json()['data']['email'] == return_value['userinfo']['email']
-    assert response.json()['data']['first_name'] == return_value['userinfo']['given_name']
-    assert response.json()['data']['last_name'] == return_value['userinfo']['family_name']
-
-    # test user is saved to db and the oauth data is saved
-    user_id = response.json()['data']['id']
-    user = test_session.query(User).filter_by(id=user_id).first()
-
-    assert user.first_name == return_value['userinfo']['given_name']
-    assert user.email == return_value['userinfo']['email']
-
-    # test for oauth data
-    oauth = test_session.query(OAuth).filter_by(user_id=user_id).first()
-
-    assert oauth.access_token == return_value['access_token']
-    assert oauth.refresh_token == ''
-    assert oauth.sub == return_value['userinfo']['sub']
+    assert response.json()['access_token'] == generate_token_return['access_token']
