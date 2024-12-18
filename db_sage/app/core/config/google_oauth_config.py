@@ -13,6 +13,7 @@ google_oauth.register(
     server_metadata_url=CONF_URL,
     client_kwargs={
         'scope': 'openid email profile',
-        'access_type': 'offline' # request for refresh token
+        'access_type': 'offline', # request for refresh token
+        'prompt': 'consent'
     }
 )
