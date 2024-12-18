@@ -2,7 +2,11 @@ from fastapi import Depends, HTTPException, status, Response
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.orm import Session
 from typing import Annotated, Union
+from starlette.responses import RedirectResponse
+from urllib.parse import quote
+import json
 
+from db_sage.app.utils.settings import settings
 from db_sage.app.db.database import get_db
 from db_sage.app.v1.models.user import User, UserToken
 from db_sage.app.v1.models.oauth import OAuth
@@ -18,7 +22,7 @@ class GoogleOAuthService(Service):
     Args:
         Service (cls): A class with abstract methods for services
     """
-    def create(self, google_response: dict, db: Annotated[Session, Depends(get_db)]) -> object:
+    def create(self, google_response: dict, db: Annotated[Session, Depends(get_db)]) -> RedirectResponse:
         """Create a user using information gotten from google 
 
         Args:
@@ -81,6 +85,7 @@ class GoogleOAuthService(Service):
                         first_name=user_info.get("given_name"),
                         last_name=user_info.get("family_name"),
                         email=user_info.get("email"),
+                        avatar_url=user_info.get("picture"),
                         is_active=True,
                         is_verified=True,
                         updated_at=datetime.now(timezone.utc),
@@ -155,7 +160,7 @@ class GoogleOAuthService(Service):
             db.rollback()
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Exception occured in update method; {exc}")
 
-    def get_response(self, user: object, db: Annotated[Session, Depends(get_db)]) -> object:
+    def get_response(self, user: object, db: Annotated[Session, Depends(get_db)]) -> RedirectResponse:
         """Creates a response for the end user 
 
         Args:
@@ -181,19 +186,34 @@ class GoogleOAuthService(Service):
 
             user_data = UserResponseData.model_validate(user)
 
-            pydantic_model = UserLoginResponse(
-                message="Login successful",
-                access_token=tokens['access_token'],
-                expires_in=tokens['expires_in'],
-                data=user_data
+            # Create the exact user_session needed by the frontend
+            user_session = {
+                "access_token": tokens['access_token'],
+                "id": user_data.id,
+                "email": user_data.email,
+                "first_name": user_data.first_name,
+                "last_name": user_data.last_name,
+                "fullname": f"{user_data.first_name} {user_data.last_name}",
+                "image": "",
+                "avatar_url": user_data.avatar_url,
+                "is_active": user_data.is_active,
+                "is_verified": user_data.is_verified,
+                "is_superadmin": user_data.is_superadmin,
+                "created_at": user_data.created_at,
+                "token_expiry": int(datetime.now().timestamp() * 1000) + ((tokens.get('expires_in') or 0) * 1000)
+            }
+           
+            cookie_value = json.dumps(
+                user_session,
+                separators=(',', ':'),
+                ensure_ascii=False,
+                allow_nan=True,
+                default=str
             )
+            
 
-            # create a response object
-            response = Response(
-                content=pydantic_model.json(), status_code=status.HTTP_200_OK, media_type='application/json'
-                )
-
-            response.set_cookie(
+            redirect_response = RedirectResponse(url=f"{settings.FRONTEND_URL}/dashboard")
+            redirect_response.set_cookie(
                 key="refresh_token",
                 value=tokens['refresh_token'],
                 expires=timedelta(days=30),
@@ -201,6 +221,14 @@ class GoogleOAuthService(Service):
                 secure=True,
                 samesite="none"
             )
-            return response
+            redirect_response.set_cookie(
+                key="user_session", 
+                value=quote(cookie_value),
+                expires=timedelta(days=30),
+                httponly=True,
+                samesite="lax"
+            )
+
+            return redirect_response
         except Exception as exc:
             raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Exception occured in get_response method; {exc}")
