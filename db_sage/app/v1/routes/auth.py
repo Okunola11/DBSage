@@ -9,21 +9,32 @@ from db_sage.app.utils.success_response import success_response
 from db_sage.app.core.dependencies.user import get_current_user
 from db_sage.app.core.dependencies.limiter import limiter
 from db_sage.app.v1.schemas.user import (
-    RegisterUserRequest,  VerifyUserRequest, EmailRequest, ResetRequest, LoginRequest
+    RegisterUserRequest,
+    VerifyUserRequest,
+    EmailRequest,
+    ResetRequest,
+    LoginRequest,
 )
 from db_sage.app.v1.responses.user import (
-    RegisterUserResponse, UserLoginResponse, RefreshTokenResponse
-    )
+    RegisterUserResponse,
+    UserLoginResponse,
+    RefreshTokenResponse,
+)
 
 auth = APIRouter(prefix="/auth", tags=["Authentication"])
 
-@auth.post("/register", status_code=status.HTTP_201_CREATED, response_model=RegisterUserResponse)
+
+@auth.post(
+    "/register",
+    status_code=status.HTTP_201_CREATED,
+    response_model=RegisterUserResponse,
+)
 @limiter.limit("10/minute")
 async def register_user(
     request: Request,
     data: RegisterUserRequest,
     background_tasks: BackgroundTasks,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
 ):
     """Register a new user
 
@@ -38,13 +49,14 @@ async def register_user(
 
     return await user_service.create(data, db, background_tasks)
 
+
 @auth.post("/verify", status_code=status.HTTP_200_OK, response_model=success_response)
 @limiter.limit("5/minute")
 async def verify_user_account(
     request: Request,
     data: VerifyUserRequest,
     background_tasks: BackgroundTasks,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
 ):
     """Verifies a registered user's account
 
@@ -59,12 +71,11 @@ async def verify_user_account(
 
     return await user_service.activate_user_account(data, db, background_tasks)
 
+
 @auth.post("/login", status_code=status.HTTP_200_OK, response_model=UserLoginResponse)
 @limiter.limit("5/minute")
 async def user_login(
-    request: Request,
-    data: LoginRequest,
-    db: Annotated[Session, Depends(get_db)]
+    request: Request, data: LoginRequest, db: Annotated[Session, Depends(get_db)]
 ):
     """Login a user
 
@@ -75,15 +86,15 @@ async def user_login(
     Returns:
         - dict: the user data with tokens
     """
-    
+
     return await user_service.get_login_token(data, db)
 
-@auth.post("/refresh", status_code=status.HTTP_200_OK, response_model=RefreshTokenResponse)
+
+@auth.post(
+    "/refresh", status_code=status.HTTP_200_OK, response_model=RefreshTokenResponse
+)
 @limiter.limit("5/minute")
-async def refresh_token(
-    db: Annotated[Session, Depends(get_db)],
-    request: Request
-):
+async def refresh_token(db: Annotated[Session, Depends(get_db)], request: Request):
     """Refreshes expired access token
 
     Args:
@@ -97,13 +108,16 @@ async def refresh_token(
     refresh_token = request.cookies.get("refresh_token")
     return await user_service.get_refresh_token(refresh_token, db)
 
-@auth.post("/forgot-password", status_code=status.HTTP_200_OK, response_model=success_response)
+
+@auth.post(
+    "/forgot-password", status_code=status.HTTP_200_OK, response_model=success_response
+)
 @limiter.limit("5/minute")
 async def forgot_password(
     request: Request,
     data: EmailRequest,
     background_tasks: BackgroundTasks,
-    db: Annotated[Session, Depends(get_db)]
+    db: Annotated[Session, Depends(get_db)],
 ):
     """Endpoint for users to request a password change email
 
@@ -118,12 +132,13 @@ async def forgot_password(
 
     return await user_service.email_forgot_password_link(data, background_tasks, db)
 
-@auth.put("/reset-password", status_code=status.HTTP_200_OK, response_model=success_response)
+
+@auth.put(
+    "/reset-password", status_code=status.HTTP_200_OK, response_model=success_response
+)
 @limiter.limit("5/minute")
 async def reset_password(
-    request: Request,
-    data: ResetRequest,
-    db: Annotated[Session, Depends(get_db)]
+    request: Request, data: ResetRequest, db: Annotated[Session, Depends(get_db)]
 ):
     """Resets a users password
 
