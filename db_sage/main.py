@@ -75,8 +75,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
 origins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
+    settings.FRONTEND_URL
 ]
 
 app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
