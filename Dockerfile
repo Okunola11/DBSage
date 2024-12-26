@@ -54,4 +54,4 @@ COPY ./db_sage /usr/src/db_sage
 
 EXPOSE 7002
 
-CMD ["gunicorn", "-w", "4", "-k", "uvicorn.workers.UvicornWorker", "db_sage.main:app", "--bind", "0.0.0.0:7002"]
+CMD ["gunicorn", "-w", "1", "-k", "uvicorn.workers.UvicornWorker", "db_sage.main:app", "--bind", "0.0.0.0:7002"]
