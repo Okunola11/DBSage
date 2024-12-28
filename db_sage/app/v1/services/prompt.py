@@ -44,105 +44,119 @@ class PromptService(Service):
         Raises:
             HTTPException: If no similar tables are found or other issues arise, an HTTP 400 error is raised indicating the need for existing tables.
         """
-        with PostgresAgentInstruments("prompt-endpoint", id) as (agent_instruments, db):
+        try:
+            with PostgresAgentInstruments("prompt-endpoint", id) as (
+                agent_instruments,
+                db,
+            ):
 
-            # ---------------- BUILDING TABLE DEFINITIONS ----------------
+                # ---------------- BUILDING TABLE DEFINITIONS ----------------
 
-            base_prompt = data.prompt
+                base_prompt = data.prompt
 
-            map_table_name_to_table_def = db.get_table_definition_map_for_embeddings()
-
-            database_embedder = DatabaseEmbedder()
-
-            for name, table_def in map_table_name_to_table_def.items():
-                database_embedder.add_table(name, table_def)
-
-            similar_tables = database_embedder.get_similar_tables(base_prompt, n=2)
-            print("\n---------------- SIMILAR TABLES ---------------")
-            print(similar_tables)
-
-            if not similar_tables:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Please provide existing tables query.",
+                map_table_name_to_table_def = (
+                    db.get_table_definition_map_for_embeddings()
                 )
 
-            table_definitions = database_embedder.get_table_definitions_from_names(
-                similar_tables
-            )
+                database_embedder = DatabaseEmbedder()
 
-            prompt = f"Fulfill this database query: {base_prompt}"
-            prompt = llm.add_cap_ref(
-                prompt,
-                f"Use these TABLE_DEFINITIONS to satisfy the database query.",
-                "TABLE_DEFINITIONS",
-                table_definitions,
-            )
+                for name, table_def in map_table_name_to_table_def.items():
+                    database_embedder.add_table(name, table_def)
 
-            # -------------------------------- AGENTS --------------------------------
+                similar_tables = database_embedder.get_similar_tables(base_prompt, n=2)
+                print("\n---------------- SIMILAR TABLES ---------------")
+                print(similar_tables)
 
-            tools = [
-                TurboTool("run_sql", llm.run_sql_tool_config, agent_instruments.run_sql)
-            ]
+                if not similar_tables:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail="Please provide existing tables query.",
+                    )
 
-            sql_response = llm.prompt(
-                prompt,
-                model="gpt-4o-mini",
-                instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
-            )
-            if not sql_response:
-                raise HTTPException(
-                    status_code=502,
-                    detail="OpenAI connection failed. Please try again later.",
+                table_definitions = database_embedder.get_table_definitions_from_names(
+                    similar_tables
                 )
 
-            results_response = llm.prompt_func(
-                "Use the run_sql function to run the SQL you have just generated: "
-                + sql_response,
-                model="gpt-4o-mini",
-                instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
-                turbo_tools=tools,
+                prompt = f"Fulfill this database query: {base_prompt}"
+                prompt = llm.add_cap_ref(
+                    prompt,
+                    f"Use these TABLE_DEFINITIONS to satisfy the database query.",
+                    "TABLE_DEFINITIONS",
+                    table_definitions,
+                )
+
+                # -------------------------------- AGENTS --------------------------------
+
+                tools = [
+                    TurboTool(
+                        "run_sql", llm.run_sql_tool_config, agent_instruments.run_sql
+                    )
+                ]
+
+                sql_response = llm.prompt(
+                    prompt,
+                    model="gpt-4o-mini",
+                    instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
+                )
+                if not sql_response:
+                    raise HTTPException(
+                        status_code=502,
+                        detail="OpenAI connection failed. Please try again later.",
+                    )
+
+                results_response = llm.prompt_func(
+                    "Use the run_sql function to run the SQL you have just generated: "
+                    + sql_response,
+                    model="gpt-4o-mini",
+                    instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
+                    turbo_tools=tools,
+                )
+
+                agent_instruments.validate_run_sql()
+
+                # -------------------------------- Read result files --------------------------------
+                sql_query = open(agent_instruments.sql_query_file).read()
+                sql_query_results = open(agent_instruments.run_sql_results_file).read()
+
+                # Generate CSV data
+                csv_output = io.StringIO()
+                csv_writer = csv.writer(csv_output)
+
+                if sql_query_results:
+                    sql_results = json.loads(sql_query_results)
+
+                    if sql_results:
+                        # Write headers
+                        csv_writer.writerow(sql_results[0].keys())
+
+                        # Write data rows
+                        for row in sql_results:
+                            csv_writer.writerow(row.values())
+                    else:
+                        csv_writer.writerow(["No data available"])
+
+                # Get the CSV data as a string
+                csv_data = csv_output.getvalue()
+
+                response_data = SqlQueryResponseData(
+                    prompt=base_prompt,
+                    table_context=similar_tables,
+                    sql=sql_query,
+                    csv_data=csv_data,
+                )
+
+                response = SqlQueryResultsResponse(
+                    success=True,
+                    message="Successfully generated SQL Query.",
+                    data=response_data,
+                )
+                return response
+        except Exception as e:
+            print("Generate and run sql error", e)
+            raise HTTPException(
+                status_code=500,
+                detail="Error executing sql statement. Please provide matching tables prompt",
             )
-
-            agent_instruments.validate_run_sql()
-
-            # -------------------------------- Read result files --------------------------------
-            sql_query = open(agent_instruments.sql_query_file).read()
-            sql_query_results = open(agent_instruments.run_sql_results_file).read()
-
-            # Generate CSV data
-            csv_output = io.StringIO()
-            csv_writer = csv.writer(csv_output)
-
-            if sql_query_results:
-                sql_results = json.loads(sql_query_results)
-
-                if sql_results:
-                    # Write headers
-                    csv_writer.writerow(sql_results[0].keys())
-
-                    # Write data rows
-                    for row in sql_results:
-                        csv_writer.writerow(row.values())
-                else:
-                    csv_writer.writerow(["No data available"])
-
-            # Get the CSV data as a string
-            csv_data = csv_output.getvalue()
-
-            response_data = SqlQueryResponseData(
-                prompt=base_prompt,
-                table_context=similar_tables,
-                sql=sql_query,
-                csv_data=csv_data,
-            )
-
-            response = SqlQueryResultsResponse(
-                success=True,
-                message="Successfully generated SQL Query.",
-                data=response_data,
-            )
-            return response
 
     def create(self):
         pass
