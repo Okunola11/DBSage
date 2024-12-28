@@ -78,22 +78,22 @@ class PostgresAgentInstruments(AgentInstruments):
     """
     Unified Toolset for the postgres Data Analytics Multi-Agent System
 
-    This class provides a standardized set of tools and functions for agents within a multi-agent system 
+    This class provides a standardized set of tools and functions for agents within a multi-agent system
     that interacts with a Postgres database. It offers several advantages:
 
-    - **Shared State and Functions:** All agents have access to the same state (like database connection) 
+    - **Shared State and Functions:** All agents have access to the same state (like database connection)
       and functions, promoting consistency and reducing redundancy.
-    - **Context Awareness:** Agents can utilize functions that dynamically adapt to changing context 
+    - **Context Awareness:** Agents can utilize functions that dynamically adapt to changing context
       based on the current session.
-    - **Clear Agent Capabilities:** Functions offer well-defined capabilities for agents, 
+    - **Clear Agent Capabilities:** Functions offer well-defined capabilities for agents,
       facilitating easier development and understanding.
     - **Clean Database Management:** The class simplifies database connection management.
 
     **Guidelines:**
 
-    - **Agent Function Isolation:** Agent functions should not directly call other agent functions. 
+    - **Agent Function Isolation:** Agent functions should not directly call other agent functions.
       Instead, they should interact with external lower-level modules.
-    - **One-to-One Mapping (Optional):** Consider a one-to-one mapping between agents and their functions 
+    - **One-to-One Mapping (Optional):** Consider a one-to-one mapping between agents and their functions
       for simpler architecture.
     - **Persistent State Lifecycle:** The state of this class persists across agent orchestrations.
     """
@@ -225,9 +225,9 @@ class PostgresAgentInstruments(AgentInstruments):
     def validate_run_sql(self):
         """Checks if the "run_sql_results.json" file exists and contains content.
 
-        This method validates the results of the `run_sql` function. It verifies 
-        whether the file containing the query results exists in the agent's root 
-        directory and if the file has any content.  
+        This method validates the results of the `run_sql` function. It verifies
+        whether the file containing the query results exists in the agent's root
+        directory and if the file has any content.
 
         Returns:
             bool: True if the file exists and has content, False otherwise.
@@ -248,7 +248,7 @@ class PostgresAgentInstruments(AgentInstruments):
         Writes content to a file named "write_file.txt" in the agent's root directory.
 
         This method is a generic file writer that takes a string as content and writes it
-        to a file named "write_file.txt" within the agent's root directory. 
+        to a file named "write_file.txt" within the agent's root directory.
 
         Args:
             content (str): The content to be written to the file.
@@ -261,7 +261,7 @@ class PostgresAgentInstruments(AgentInstruments):
         """
         Writes content to a file named "write_json_file.json" in the agent's root directory.
 
-        This method is similar to `write_file` but specifically writes JSON content 
+        This method is similar to `write_file` but specifically writes JSON content
         to a file named "write_json_file.json".
 
         Args:

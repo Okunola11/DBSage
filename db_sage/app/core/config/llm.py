@@ -107,33 +107,49 @@ def prompt(
         SystemExit: If the OpenAI API key is not set.
     """
 
-    # validate the openai api key - if it's not valid, raise an error
-    if not openai.api_key:
-        sys.exit(
-            """
-            ERROR: OpenAI Key not found. Please export your key to OPENAI_API_KEY
-            Example bash command:
-                export OPENAI_API_KEY=<your openai api key>
-            """
+    try:
+        # validate the openai api key - if it's not valid, raise an error
+        if not openai.api_key:
+            sys.exit(
+                """
+                ERROR: OpenAI Key not found. Please export your key to OPENAI_API_KEY
+                Example bash command:
+                    export OPENAI_API_KEY=<your openai api key>
+                """
+            )
+
+        response = openai.chat.completions.create(
+            model=model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": instructions,
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
         )
 
-    response = openai.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": instructions,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-    )
-
-    print("--------- OPEN AI RESPONSE ---------")
-    print(response.json())
-    return response_parse(response.model_dump())
+        print("--------- OPEN AI RESPONSE ---------")
+        print(response.json())
+        return response_parse(response.model_dump())
+    except (APIConnectionError, APITimeoutError) as e:
+        print(f"Network error: {str(e)}")
+        return None
+    except RateLimitError as e:
+        print(f"Rate limit exceeded: {str(e)}")
+        return None
+    except AuthenticationError as e:
+        print(f"Authentication failed: {str(e)}")
+        return None
+    except APIError as e:
+        print(f"OpenAI API error: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error: {str(e)}")
+        return None
 
 
 def prompt_func(

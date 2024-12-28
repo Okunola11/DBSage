@@ -489,8 +489,7 @@ class UserService(Service):
 
         refresh_key = unique_string(100)
         access_key = unique_string(50)
-        rt_expires = timedelta(minutes=15)
-        # rt_expires = timedelta(days=settings.JWT_REFRESH_EXPIRY)
+        rt_expires = timedelta(days=settings.JWT_REFRESH_EXPIRY)
 
         user_token = UserToken(
             user_id=user.id,
@@ -509,8 +508,7 @@ class UserService(Service):
             "n": str_encode(f"{user.last_name}"),
         }
 
-        at_expires = timedelta(minutes=5)
-        # at_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+        at_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = generate_token(
             access_token_payload, settings.SECRET_KEY, settings.ALGORITHM, at_expires
         )

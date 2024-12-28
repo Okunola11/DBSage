@@ -8,7 +8,10 @@ from db_sage.app.core.config.embedder import DatabaseEmbedder
 from db_sage.app.core.config.instruments import PostgresAgentInstruments
 from db_sage.app.core.config import llm
 from db_sage.app.utils.types import TurboTool
-from db_sage.app.v1.responses.prompt import SqlQueryResultsResponse, SqlQueryResponseData
+from db_sage.app.v1.responses.prompt import (
+    SqlQueryResultsResponse,
+    SqlQueryResponseData,
+)
 
 
 class PromptService(Service):
@@ -59,18 +62,21 @@ class PromptService(Service):
             print(similar_tables)
 
             if not similar_tables:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please provide existing tables query.")
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Please provide existing tables query.",
+                )
 
             table_definitions = database_embedder.get_table_definitions_from_names(
                 similar_tables
             )
-            
+
             prompt = f"Fulfill this database query: {base_prompt}"
             prompt = llm.add_cap_ref(
                 prompt,
                 f"Use these TABLE_DEFINITIONS to satisfy the database query.",
                 "TABLE_DEFINITIONS",
-                table_definitions
+                table_definitions,
             )
 
             # -------------------------------- AGENTS --------------------------------
@@ -82,15 +88,20 @@ class PromptService(Service):
             sql_response = llm.prompt(
                 prompt,
                 model="gpt-4o-mini",
-                instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries."
+                instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
             )
+            if not sql_response:
+                raise HTTPException(
+                    status_code=502,
+                    detail="OpenAI connection failed. Please try again later.",
+                )
 
             results_response = llm.prompt_func(
                 "Use the run_sql function to run the SQL you have just generated: "
                 + sql_response,
                 model="gpt-4o-mini",
                 instructions="You are an elite SQL developer. You generate the most concise and performant SQL queries.",
-                turbo_tools=tools
+                turbo_tools=tools,
             )
 
             agent_instruments.validate_run_sql()
@@ -105,7 +116,7 @@ class PromptService(Service):
 
             if sql_query_results:
                 sql_results = json.loads(sql_query_results)
-                
+
                 if sql_results:
                     # Write headers
                     csv_writer.writerow(sql_results[0].keys())
@@ -129,7 +140,7 @@ class PromptService(Service):
             response = SqlQueryResultsResponse(
                 success=True,
                 message="Successfully generated SQL Query.",
-                data=response_data
+                data=response_data,
             )
             return response
 
@@ -147,5 +158,6 @@ class PromptService(Service):
 
     def delete(self):
         pass
+
 
 prompt_service = PromptService()
