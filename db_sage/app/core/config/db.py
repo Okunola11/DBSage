@@ -4,6 +4,9 @@ from datetime import datetime, timedelta, timezone
 from fastapi import HTTPException, status
 from typing import Dict, Optional
 
+from db_sage.app.v1.schemas.database import DatabaseConnection
+
+
 class PostgresManager:
     """A context manager for managing PostgreSQL database connections.
 
@@ -15,7 +18,7 @@ class PostgresManager:
         conn: A psycopg2 connection object.
         cur: A psycopg2 cursor object.
     """
-    
+
     def __init__(self):
         """Initializes the DatabaseConnection object."""
 
@@ -82,12 +85,14 @@ class PostgresManager:
 
             list_of_dicts = [(dict(zip(columns, row))) for row in res]
 
-            json_result = json.dumps(list_of_dicts, indent=4, default=self.datetime_handler)
+            json_result = json.dumps(
+                list_of_dicts, indent=4, default=self.datetime_handler
+            )
 
             return json_result
         except Exception as e:
             print(f"Error executing SQL query: {e}")
-            raise
+            raise HTTPException(status_code=500, detail="Error executing query")
 
     def datetime_handler(self, obj):
         """Handles datetime objects when serializing to JSON.
@@ -150,6 +155,11 @@ class PostgresManager:
         )
         try:
             self.cur.execute(get_all_tables_stmt)
+        except psycopg2.errors.InFailedSqlTransaction:
+            raise HTTPException(
+                status_code=400,
+                detail="Current transaction aborted. Please reconnect to your database.",
+            )
         except Exception as e:
             print(f"Error retrieving table names: {e}")
             raise
@@ -158,7 +168,7 @@ class PostgresManager:
     def get_all_tables_and_columns(self):
         """
         Retrieves all tables in the public schema and their corresponding columns.
-        
+
         Returns:
             A list of dictionaries, where each dictionary represents a table.
             The dictionary has two keys: 'table_name' and 'columns'.
@@ -177,19 +187,16 @@ class PostgresManager:
         ORDER BY 
             table_name;
         """
-        
+
         try:
             self.cur.execute(query)
             results = self.cur.fetchall()
-            
+
             tables_and_columns = [
-                {
-                    'table_name': table_name,
-                    'columns': columns
-                }
+                {"table_name": table_name, "columns": columns}
                 for table_name, columns in results
             ]
-            
+
             return tables_and_columns
         except psycopg2.Error as e:
             print(f"Error retrieving tables and columns: {e}")
@@ -204,7 +211,7 @@ class PostgresManager:
         Returns:
             A string containing the definitions of all tables in the 'public' schema, separated by newline characters.
         """
-        
+
         table_names = self.get_all_table_names()
         definitions = []
         for table_name in table_names:
@@ -285,7 +292,9 @@ class PostgresManager:
 
         return related_tables_list
 
+
 import threading
+
 
 class DatabaseStateManager:
     """
@@ -297,7 +306,7 @@ class DatabaseStateManager:
 
     Attributes:
         _connections (Dict[str, PostgresManager]): Dictionary mapping user IDs to their database connections.
-        _urls (Dict[str, str]): Dictionary mapping user IDs to their database URLs.
+        _connection_data (Dict[str, dict]): Dictionary mapping user IDs to their database data.
         _last_used (Dict[str, datetime]): Dictionary tracking when each connection was last accessed.
         _cleanup_threshold (timedelta): Time after which inactive connections are cleaned up.
 
@@ -337,15 +346,15 @@ class DatabaseStateManager:
                 if cls._instance is None:
                     cls._instance = super(DatabaseStateManager, cls).__new__(cls)
                     cls._instance._connections: Dict[str, PostgresManager] = {}
-                    cls._instance._urls: Dict[str, str] = {}
+                    cls._instance._connection_data: Dict[str, dict] = {}
                     cls._instance._last_used: Dict[str, datetime] = {}
                     cls._instance._created_at: Dict[str, datetime] = {}
         return cls._instance
 
     def __init__(self):
-        self._cleanup_threshold = timedelta(hours=1) 
+        self._cleanup_threshold = timedelta(minutes=15)
 
-    def set_connection(self, user_id: str, db_url: str) -> bool:
+    def set_connection(self, user_id: str, data: DatabaseConnection) -> bool:
         """
         Establishes a new database connection for a specific user.
 
@@ -355,7 +364,7 @@ class DatabaseStateManager:
 
         Args:
             user_id (str): The ID of the user for whom to establish the connection.
-            db_url (str): The URL of the database to connect to.
+            data (DatabaseConnection): The connection details of the database.
 
         Returns:
             bool: True if the connection was successfully established, False otherwise.
@@ -371,21 +380,32 @@ class DatabaseStateManager:
         """
 
         MAX_CONNECTIONS_PER_USER = 1
-        if len([k for k in self._connections.keys() if k.startswith(user_id)]) >= MAX_CONNECTIONS_PER_USER:
+        if (
+            len([k for k in self._connections.keys() if k.startswith(user_id)])
+            >= MAX_CONNECTIONS_PER_USER
+        ):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Maximum number of connections reached for this user"
+                detail="Maximum number of connections reached for this user",
             )
 
         try:
+            conn_url = "%s://%s:%s@%s:%d/%s" % (
+                data.database_type,
+                data.username,
+                data.password,
+                data.host,
+                data.port,
+                data.database_name,
+            )
             new_db = PostgresManager()
-            new_db.connect_with_url(db_url)
-            
+            new_db.connect_with_url(conn_url)
+
             # Close existing connection if it exists
             self.close_connection(user_id)
-            
+
             self._connections[user_id] = new_db
-            self._urls[user_id] = db_url
+            self._connection_data[user_id] = data.model_dump(exclude=["password"])
             self._created_at[user_id] = datetime.now(timezone.utc)
             return True
         except Exception as e:
@@ -437,7 +457,7 @@ class DatabaseStateManager:
         if user_id in self._connections:
             self._connections[user_id].__exit__(None, None, None)
             del self._connections[user_id]
-            del self._urls[user_id]
+            del self._connection_data[user_id]
 
         if user_id in self._last_used:
             del self._last_used[user_id]
@@ -473,13 +493,13 @@ class DatabaseStateManager:
         Returns:
             dict: A dictionary containing connection status information including:
                 - has_connection: Whether an active connection exists
-                - db_url: The URL of the database connection
+                - data: The connected database details
                 - last_used: Timestamp of last connection usage
                 - connection_age: Time elapsed since the connection was set
         """
 
         connection = self._connections.get(user_id)
-        url = self._urls.get(user_id)
+        connection_data = self._connection_data.get(user_id)
         last_used_iso = self._last_used.get(user_id)
         created_at = self._created_at.get(user_id)
 
@@ -487,12 +507,12 @@ class DatabaseStateManager:
             connection_age = str(datetime.now(timezone.utc) - created_at)
         else:
             connection_age = None
-        
+
         return {
             "has_connection": connection is not None,
-            "db_url": url,
+            "data": connection_data,
             "last_used": last_used_iso,
-            "connection_age": connection_age
+            "connection_age": connection_age,
         }
 
     def get_active_connections(self) -> Dict[str, dict]:
@@ -509,7 +529,7 @@ class DatabaseStateManager:
 
         return {
             user_id: {
-                "db_url": self._urls[user_id],
+                "connection_data": self._connection_data[user_id],
                 "last_used": self._last_used.get(user_id),
             }
             for user_id in self._connections.keys()
@@ -533,7 +553,7 @@ class DatabaseStateManager:
         connection = self._connections.get(user_id)
         if not connection:
             return False
-        
+
         try:
             # Assuming PostgresManager has a method to test connection
             await connection.execute("SELECT 1")
