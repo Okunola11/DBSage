@@ -4,18 +4,20 @@ from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent
 
+
 class Settings(BaseSettings):
     """class to hold config values
 
     Args:
         BaseSettings
     """
+
     APP_NAME: str = config("APP_NAME")
 
     OPENAI_API_KEY: str = config("OPENAI_API_KEY")
 
     # Database configurations
-    DB_HOST:str = config("DB_HOST")
+    DB_HOST: str = config("DB_HOST")
     DB_PORT: int = config("DB_PORT", cast=int)
     DB_USER: str = config("DB_USER")
     DB_PASSWORD: str = config("DB_PASSWORD")
@@ -35,11 +37,13 @@ class Settings(BaseSettings):
     MAIL_FROM_NAME: str = config("MAIL_FROM_NAME")
 
     FRONTEND_URL: str = config("FRONTEND_URL", default="http:localhost:3000")
+    GOOGLE_OAUTH_REDIRECT_URL: str = config("GOOGLE_OAUTH_REDIRECT_URL")
 
     # base dir to store prompts results
     BASE_DIR: str = config("BASE_DIR", default="./agent_results")
-    
+
     # The database our AI communicates with
     QUERY_DATABASE: str = config("QUERY_DATABASE")
+
 
 settings = Settings()
