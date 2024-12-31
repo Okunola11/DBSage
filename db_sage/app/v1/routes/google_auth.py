@@ -27,17 +27,17 @@ async def google_oauth2(request: Request) -> RedirectResponse:
     Returns:
         RedirectResponse: a redirect to google's authorization server
     """
-    redirect_uri = request.url_for("google_oauth2_callback")
-    redirect_uri_str = redirect_uri
-    if request.url.scheme == "http":
-        redirect_uri_str = str(redirect_uri).replace("http://", "https://", 1)
+
+    redirect_uri = settings.GOOGLE_OAUTH_REDIRECT_URL
+    if not redirect_uri:
+        redirect_uri = request.url_for("google_oauth2_callback")
 
     # generate a state value and store it in the session
     state = secrets.token_urlsafe(16)
     print(f"STATE IS {state}")
     request.session["state"] = state
     response = await google_oauth.google.authorize_redirect(
-        request, redirect_uri_str, state=state
+        request, redirect_uri, state=state
     )
     return response
 
