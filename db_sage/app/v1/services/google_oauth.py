@@ -245,22 +245,33 @@ class GoogleOAuthService(Service):
             redirect_response = RedirectResponse(
                 url=f"{settings.FRONTEND_URL}/dashboard"
             )
-            redirect_response.set_cookie(
-                key="refresh_token",
-                value=tokens["refresh_token"],
-                expires=timedelta(days=30),
-                httponly=True,
-                secure=True,
-                samesite="none",
-            )
+
+            # redirect_response.set_cookie(
+            #     key="refresh_token",
+            #     value=tokens["refresh_token"],
+            #     expires=timedelta(days=30),
+            #     httponly=True,
+            #     secure=True,
+            #     samesite="none",
+            # )
             redirect_response.set_cookie(
                 key="user_session",
                 value=quote(cookie_value),
                 expires=timedelta(days=30),
                 httponly=True,
                 samesite="lax",
+                domain=settings.FRONTEND_URL,
             )
 
+            redirect_response.set_cookie(
+                key="refresh_token",
+                value="some_random_token",
+                max_age=30 * 24 * 60 * 60,
+                httponly=False,
+                secure=False,
+                samesite="lax",
+                domain=settings.FRONTEND_URL,
+            )
             return redirect_response
         except Exception as exc:
             raise HTTPException(
