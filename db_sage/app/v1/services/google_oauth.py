@@ -258,8 +258,10 @@ class GoogleOAuthService(Service):
                 expires=timedelta(days=30),
                 httponly=True,
                 samesite="lax",
-                domain=settings.FRONTEND_URL,
             )
+            print("\n\n")
+            print("SETTING COOKIES")
+            print('\n\n')
 
             redirect_response.set_cookie(
                 key="refresh_token",
@@ -268,7 +270,6 @@ class GoogleOAuthService(Service):
                 httponly=False,
                 secure=False,
                 samesite="lax",
-                domain=settings.FRONTEND_URL,
             )
             return redirect_response
         except Exception as exc:
