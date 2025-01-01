@@ -91,7 +91,7 @@ app.add_middleware(
 app.include_router(api_version_one)
 
 
-@app.get("/", tags=["Home"])
+@app.api_route("/", methods=["GET", "HEAD"], tags=["Home"])
 async def get_root(request: Request) -> dict:
     return JSONResponse(
         status_code=status.HTTP_200_OK, content={"message": "Welcome to API"}
