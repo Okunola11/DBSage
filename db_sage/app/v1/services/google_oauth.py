@@ -242,9 +242,7 @@ class GoogleOAuthService(Service):
                 default=str,
             )
 
-            redirect_response = RedirectResponse(
-                url=f"{settings.FRONTEND_URL}/dashboard"
-            )
+            redirect_response = RedirectResponse(url=f"{settings.FRONTEND_URL}/login")
 
             # redirect_response.set_cookie(
             #     key="refresh_token",
