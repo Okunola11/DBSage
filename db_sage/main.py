@@ -82,8 +82,7 @@ app.add_middleware(SessionMiddleware, secret_key=settings.SECRET_KEY)
 
 app.add_middleware(
     CORSMiddleware,
-    # allow_origins=origins,
-    allow_origins=["https://dbsage-frontend.vercel.app/"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -97,19 +96,6 @@ async def get_root(request: Request) -> dict:
     return JSONResponse(
         status_code=status.HTTP_200_OK, content={"message": "Welcome to API"}
     )
-
-
-@app.get("/set-cookie")
-def set_cookie():
-    response = RedirectResponse(url=settings.FRONTEND_URL)
-    response.set_cookie(
-        key="test_cookie",
-        value="test_value",
-        httponly=True,
-        samesite="none",  # Change as needed
-        secure=True,  # Change as needed based on HTTPS
-    )
-    return response
 
 
 # EXCEPTION HANDLERS
