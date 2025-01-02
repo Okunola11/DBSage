@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey
+from sqlalchemy import Column, String, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
 from .base_model import BaseTableModel
 
@@ -14,5 +14,6 @@ class OAuth(BaseTableModel):
     access_token = Column(String, nullable=False)
     refresh_token = Column(String, nullable=False)
     id_token = Column(String, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True)
 
     user = relationship("User", back_populates="oauth")
