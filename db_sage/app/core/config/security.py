@@ -3,10 +3,13 @@ import base64
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
 from sqlalchemy.orm import Session, joinedload
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import HTTPException
 
 from db_sage.app.v1.models.user import UserToken
 from db_sage.app.utils.settings import settings
 from db_sage.app.utils.logger import logger
+from db_sage.app.utils.settings import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -147,3 +150,25 @@ async def load_user(email: str, db: Session):
         logger.info(f"User Not Found, Email: {email}")
         user = None
     return user
+
+
+# Generate a key for encryption and decryption
+decoded_key = settings.ENCRYPT_KEY
+key = decoded_key.encode("utf-8")
+
+
+def encrypt_string(plain_text):
+    """Encrypts a plain text string."""
+    cipher_suite = Fernet(key)
+    encrypted_text = cipher_suite.encrypt(plain_text.encode())
+    return encrypted_text
+
+
+def decrypt_string(encrypted_text):
+    """Decrypts an encrypted text string."""
+    cipher_suite = Fernet(key)
+    try:
+        decrypted_text = cipher_suite.decrypt(encrypted_text).decode()
+        return decrypted_text
+    except InvalidToken:
+        raise HTTPException(status_code=400, detail="Invalid token")
