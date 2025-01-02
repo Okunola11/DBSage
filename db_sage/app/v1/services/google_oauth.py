@@ -68,6 +68,7 @@ class GoogleOAuthService(Service):
                             sub=user_info.get("sub"),
                             access_token=google_response.get("access_token", ""),
                             refresh_token=google_response.get("refresh_token", ""),
+                            id_token=google_response.get("id_token"),
                         )
                         # add and commit to get the inserted_id
                         db.add(oauth_data)
@@ -115,6 +116,7 @@ class GoogleOAuthService(Service):
                         sub=user_info.get("sub"),
                         access_token=google_response.get("access_token", ""),
                         refresh_token=google_response.get("refresh_token", ""),
+                        id_token=google_response.get("id_token"),
                     )
                     # add and commit to get the inserted_id
                     # add the profile url for the user_info dict
