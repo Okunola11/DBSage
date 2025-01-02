@@ -125,4 +125,4 @@ async def get_login_tokens(
     """
 
     google_oauth_service = GoogleOAuthService()
-    return google_oauth_service.generate_oauth_login_tokens(data, user, db)
+    return google_oauth_service.generate_oauth_login_tokens(data, db)
