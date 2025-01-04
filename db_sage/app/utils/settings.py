@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = config("ALGORITHM")
     ACCESS_TOKEN_EXPIRE_MINUTES: int = config("ACCESS_TOKEN_EXPIRE_MINUTES")
     JWT_REFRESH_EXPIRY: int = config("JWT_REFRESH_EXPIRY")
+    ENCRYPT_KEY: str = config("ENCRYPT_KEY")
 
     MAIL_USERNAME: str = config("MAIL_USERNAME")
     MAIL_PASSWORD: str = config("MAIL_PASSWORD")

@@ -13,6 +13,10 @@ from db_sage.app.v1.schemas.google_oauth import OAuthToken
 from db_sage.app.utils.settings import settings
 
 from db_sage.app.v1.services.google_oauth import GoogleOAuthService
+from db_sage.app.v1.schemas.google_oauth import (
+    GoogleLoginTokenRequest,
+    GoogleLoginTokenResponse,
+)
 
 google_auth = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -34,7 +38,6 @@ async def google_oauth2(request: Request) -> RedirectResponse:
 
     # generate a state value and store it in the session
     state = secrets.token_urlsafe(16)
-    print(f"STATE IS {state}")
     request.session["state"] = state
     response = await google_oauth.google.authorize_redirect(
         request, redirect_uri, state=state
@@ -61,7 +64,6 @@ async def google_oauth2_callback(
         state_from_params = request.query_params.get("state")
         # verify the state value to prevent CSRF
         if state_in_session != state_from_params:
-            print(f"states not equal; {state_in_session} is not {state_from_params}")
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="CSRF Warning! State not equal in request and response",
@@ -70,30 +72,25 @@ async def google_oauth2_callback(
         google_response: OAuth2Token = await google_oauth.google.authorize_access_token(
             request
         )
-        print(google_response)
 
         # check if id_token is present
         if "id_token" not in google_response:
-            print("id_token not in google_response")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Authentication failed"
             )
     except:
-        print("Authentication flow failed")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Authentication failed"
         )
 
     try:
         if not google_response.get("access_token"):
-            print("no access token in google_response")
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST, detail="Authentication failed"
             )
 
         # if google has not verified users email
         if not google_response.get("userinfo", {}).get("email"):
-            print("no email in google_response")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail="Authentication failed"
             )
@@ -106,3 +103,26 @@ async def google_oauth2_callback(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Exception occured; {exc}",
         )
+
+
+@google_auth.post(
+    "/google/tokens",
+    status_code=status.HTTP_200_OK,
+    response_model=GoogleLoginTokenResponse,
+)
+async def get_login_tokens(
+    data: GoogleLoginTokenRequest,
+    db: Annotated[Session, Depends(get_db)],
+):
+    """Returns login tokens after google oauth authorization
+
+    Args:
+        data (GoogleLoginTokenRequest): request payload
+        db (Annotated[Session, Depends): database session
+
+    Returns:
+        GoogleLoginTokenResponse: response data
+    """
+
+    google_oauth_service = GoogleOAuthService()
+    return google_oauth_service.generate_oauth_login_tokens(data, db)
