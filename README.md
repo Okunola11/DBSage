@@ -73,8 +73,8 @@ poetry run start
 
 ```plaintext
 Table name: orders
-Good prompt: "Show me all order where the total is greater than $1000"
-Bad prompt: "Show me all orders where the total is greater than $1000"
+Good prompt: "Show me all orders where the total is greater than $1000"
+Bad prompt: "Show me all order where the total is greater than $1000"
 ```
 
 4. Submit your natural language query
