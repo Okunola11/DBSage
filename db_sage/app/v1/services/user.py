@@ -350,6 +350,9 @@ class UserService(Service):
         if not user:
             raise HTTPException(status_code=400, detail="Invalid request!")
 
+        if not user.password:
+            raise HTTPException(status_code=400, detail="Invalid request!")
+
         if not verify_password(data.password, user.password):
             raise HTTPException(status_code=400, detail="Incorrect email or password")
 
